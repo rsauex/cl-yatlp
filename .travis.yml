@@ -43,7 +43,7 @@ before_script:
 # to do unit testing; other frameworks will have different ways of
 # determining whether a test suite fails or succeeds.
 script:
-  - cl -e '(ql:quickload :cl-yatpl)
+  - cl -e '(ql:quickload :cl-yatlp)
            #(rtest:do-tests)
            #(unless (null (rtest:pending-tests))
            #  (uiop:quit 1))'
