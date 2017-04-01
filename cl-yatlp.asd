@@ -4,4 +4,14 @@
   :depends-on (#:alexandria
                #:eager-future2)
   :serial t
-  :components ((:file "test")))
+  :components ((:file "lazy-list")
+               (:file "atn")
+
+               (:file "lexer/cond")
+               (:file "lexer/states")
+               (:file "lexer/creation")
+               (:file "lexer/transformation")
+               (:file "lexer/lexer")
+
+               (:file "parser/parser-states")
+               (:file "parser/parser")))
