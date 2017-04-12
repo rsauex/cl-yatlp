@@ -2,6 +2,9 @@
   (:use #:cl #:alexandria #:eager-future2)
   (:export #:make-atn
 
+           #:defstate
+           #:defrule
+
            #:rule
            #:state
            #:end-state
@@ -9,24 +12,23 @@
 
            #:with-atn
 
+           #:@extra
+
+           #:@get-state
            #:@add-state
-           #:@state-type
-           #:@add-rule
-           #:@state-type
-           #:@state-cond
-           #:@state-nexts
-           #:@state-call-to
-           #:@state-end-type
-           #:@state-end-options
-           #:@get-rule
-           #:@rule-state
-           #:@rule-options
-           #:@typep
-           #:@rem-rule
            #:@rem-state
            #:@states
+           #:@state-type
+           #:@state-call-to
+
+           #:@get-rule
+           #:@add-rule
+           #:@rem-rule
+           #:@rules
+
+           #:@typep
+           
            #:@state-nexts-without-end
-           #:@state-end-state
            #:delayed-rule
 
            #:with-visiting
@@ -34,6 +36,8 @@
 
            #:def-state-generic
            #:def-state-method
+           #:def-rule-generic
+           #:def-rule-method
 
            #:atn->dot
            #:@atn->dot))
@@ -44,17 +48,58 @@
 
 (defstruct atn
   (table (make-hash-table))
-  (rules (make-hash-table)))
+  (rules (make-hash-table))
+  (extra (make-hash-table)))
 
 ;;; Rule
 
-(defstruct rule
-  state
-  options)
+(eval-when (:compile-toplevel :load-toplevel)
+  (defun make-et-accessor (raw-accessor element-getter)
+    (let ((et-accessor (symbolicate "@" raw-accessor)))
+      `(progn
+         (defun ,et-accessor (rule)
+           (,raw-accessor (,element-getter rule)))
+         (export ',et-accessor)
+         (define-setf-expander ,et-accessor (x &environment env)
+           (multiple-value-bind (dummies vals newval setter getter)
+               (get-setf-expansion x env)
+             (declare (ignorable newval setter))
+             (let ((store (gensym)))
+               (values dummies
+                       vals
+                       `(,store)
+                       `(progn (setf (,',raw-accessor (,',element-getter ,getter)) ,store) ,store)
+                       `(,',et-accessor ,getter)))))))))
+
+(defmacro defrule (name direct-superclasses direct-slots &rest options)
+  (let ((accessors (mapcar (lambda (slot)
+                             (getf (rest slot) :accessor))
+                           direct-slots)))
+    `(progn
+       (defclass ,name ,direct-superclasses
+         ,direct-slots
+         ,@options)
+       ,@(mapcar (rcurry #'make-et-accessor '@get-rule) accessors))))
+
+(defrule rule ()
+  ((state :accessor rule-state
+          :initarg :state)
+   (options :accessor rule-options
+            :initarg :options)))
 
 ;;; Possible states
 
-(defclass state ()
+(defmacro defstate (name direct-superclasses direct-slots &rest options)
+  (let ((accessors (mapcar (lambda (slot)
+                             (getf (rest slot) :accessor))
+                           direct-slots)))
+    `(progn
+       (defclass ,name ,direct-superclasses
+         ,direct-slots
+         ,@options)
+       ,@(mapcar (rcurry #'make-et-accessor '@get-state) accessors))))
+
+(defstate state ()
   ((cond :accessor state-cond
          :initarg :cond
          :initform t)
@@ -63,15 +108,15 @@
           :type list
           :initform nil)))
 
-(defclass call-state (state)
+(defstate call-state (state)
   ((to :accessor call-to
        :initarg :call-to
        :type state)))
 
-(defclass end-state (state)
-  ((type :accessor end-type
+(defstate end-state (state)
+  ((type :accessor state-end-type
          :initarg :type)
-   (options :accessor end-options
+   (options :accessor state-end-options
            :initarg :options)))
 
 ;;; Tools
@@ -102,14 +147,17 @@
          (progn ,@body)
        (apply-delta atn::*atn* atn::*delta*))))
 
-(defun add-rule (atn rule state options)
-  "Add rule into atn"
-  (setf (gethash rule (atn-rules atn)) (make-rule :state state :options options)))
+(defun @extra ()
+  (atn-extra *atn*))
 
-(defun @add-rule (rule state options)
+(defun add-rule (atn rule type &rest args)
+  "Add rule into atn"
+  (setf (gethash rule (atn-rules atn)) (apply #'make-instance type args)))
+
+(defun @add-rule (rule type &rest args)
   "Add rule into current atn"
   (if *atn*
-      (add-rule *delta* rule state options)
+      (apply #'add-rule *delta* rule type args)
       (error "@ functions must be used inside of WITH-ATN")))
 
 (defun get-rule (atn rule)
@@ -160,66 +208,6 @@ Error if STATE is not in current atn"
     (typep s type)
     (error "No such state: ~S" state)))
 
-(defun @rule-state (rule)
-  "Get start states for rule in current atn"
-  (rule-state (@get-rule rule)))
-
-(define-setf-expander @rule-options (x &environment env)
-  (multiple-value-bind (dummies vals newval setter getter)
-      (get-setf-expansion x env)
-    (declare (ignorable newval setter))
-    (let ((store (gensym)))
-      (values dummies
-              vals
-              `(,store)
-              `(progn (setf (rule-state (@get-rule ,getter)) ,store) ,store)
-              `(@state-cond ,getter)))))
-
-(defun @rule-options (rule)
-  "Get options for rule in current atn"
-  (rule-options (@get-rule rule)))
-
-(define-setf-expander @rule-options (x &environment env)
-  (multiple-value-bind (dummies vals newval setter getter)
-      (get-setf-expansion x env)
-    (declare (ignorable newval setter))
-    (let ((store (gensym)))
-      (values dummies
-              vals
-              `(,store)
-              `(progn (setf (rule-options (@get-rule ,getter)) ,store) ,store)
-              `(@state-cond ,getter)))))
-
-(defun @state-cond (state)
-  "Get cond for specefied state from current atn"
-  (state-cond (@get-state state)))
-
-(define-setf-expander @state-cond (x &environment env)
-  (multiple-value-bind (dummies vals newval setter getter)
-      (get-setf-expansion x env)
-    (declare (ignorable newval setter))
-    (let ((store (gensym)))
-      (values dummies
-              vals
-              `(,store)
-              `(progn (setf (state-cond (@get-state ,getter)) ,store) ,store)
-              `(@state-cond ,getter)))))
-
-(defun @state-nexts (state)
-  "Get nexts for specified state in current atn"
-  (state-nexts (@get-state state)))
-
-(define-setf-expander @state-nexts (x &environment env)
-  (multiple-value-bind (dummies vals newval setter getter)
-      (get-setf-expansion x env)
-    (declare (ignorable newval setter))
-    (let ((store (gensym)))
-      (values dummies
-              vals
-              `(,store)
-              `(progn (setf (state-nexts (@get-state ,getter)) ,store) ,store)
-              `(@state-nexts ,getter)))))
-
 (defun delayed-rule (name)
   (pcall (lambda () (rule-state (@get-rule name))) :lazy))
 
@@ -236,36 +224,6 @@ Error if STATE is not in current atn"
               vals
               `(,store)
               `(progn (setf (call-to (@get-state ,getter)) ,store) ,store)
-              `(@state-nexts ,getter)))))
-
-(defun @state-end-type (state)
-  "Get type of end state in current atn"
-  (end-type (@get-state state)))
-
-(define-setf-expander @state-end-type (x &environment env)
-  (multiple-value-bind (dummies vals newval setter getter)
-      (get-setf-expansion x env)
-    (declare (ignorable newval setter))
-    (let ((store (gensym)))
-      (values dummies
-              vals
-              `(,store)
-              `(progn (setf (end-type (@get-state ,getter)) ,store) ,store)
-              `(@state-nexts ,getter)))))
-
-(defun @state-end-options (state)
-  "Get options for end state in current atn"
-  (end-options (@get-state state)))
-
-(define-setf-expander @state-end-options (x &environment env)
-  (multiple-value-bind (dummies vals newval setter getter)
-      (get-setf-expansion x env)
-    (declare (ignorable newval setter))
-    (let ((store (gensym)))
-      (values dummies
-              vals
-              `(,store)
-              `(progn (setf (end-options (@get-state ,getter)) ,store) ,store)
               `(@state-nexts ,getter)))))
 
 (defun rem-state (atn state)
@@ -293,11 +251,15 @@ Error if STATE is not in current atn"
                         (hash-table-keys (atn-table *delta*))))
       (error "@ functions must be used inside of WITH-ATN")))
 
-(defun @state-end-state (state)
-  (first (member-if (lambda (s) (@typep s 'end-state)) (@state-nexts state))))
-
 (defun @state-nexts-without-end (state)
   (remove-if (lambda (s) (@typep s 'end-state)) (@state-nexts state)))
+
+(defun @rules ()
+  (if *atn*
+      (union (hash-table-keys (atn-rules *atn*))
+             (remove-if (lambda (s) (eq :rem (@get-rule s)))
+                        (hash-table-keys (atn-rules *delta*))))
+      (error "@ functions must be used inside of WITH-ATN")))
 
 ;;; Visiting
 
@@ -324,9 +286,7 @@ Error if STATE is not in current atn"
 ;;; Generic
 
 (eval-when (:compile-toplevel :execute)
-  (defmacro def-state-generic (fun-name lambda-list &body options)
-    "Defines generic where first parameter must be state.
-These generic functions must be called only within with-atn"
+  (defun %def-%-generic (fun-name lambda-list options getter)
     (multiple-value-bind (required optional rest keys)
         (parse-ordinary-lambda-list lambda-list) 
       (let ((generic-name (symbolicate "%%" fun-name))
@@ -338,9 +298,8 @@ These generic functions must be called only within with-atn"
              ,@options)
            (defun ,fun-name ,lambda-list
              ,(if rest
-                  `(apply #',generic-name ,@(cons `(@get-state ,(first required)) params-for-call))
-                  `(,generic-name ,@(cons `(@get-state ,(first required)) params-for-call))))))))
-
+                  `(apply #',generic-name ,@(cons `(,getter ,(first required)) params-for-call))
+                  `(,generic-name ,@(cons `(,getter ,(first required)) params-for-call))))))))
 
   (defun parse-defmethod-args (args)
     (loop for sublist on args
@@ -349,7 +308,7 @@ These generic functions must be called only within with-atn"
           else do (return-from parse-defmethod-args
                     (values qualifiers (first sublist) (rest sublist)))))
 
-  (defmacro def-state-method (name &rest args)
+  (defun %def-%-method (name args)
     (multiple-value-bind (qualifiers params body)
         (parse-defmethod-args args)
       (let* ((generic-name (symbolicate "%%" name))
@@ -361,7 +320,23 @@ These generic functions must be called only within with-atn"
                            (first param)
                            param)))
         `(defmethod ,generic-name ,@qualifiers ,(cons `(type ,type) (cons arg-name (rest params)))
-           ,@body)))))
+           ,@body))))
+
+  (defmacro def-state-generic (fun-name lambda-list &body options)
+    "Defines generic where first parameter must be state.
+These generic functions must be called only within with-atn"
+    (%def-%-generic fun-name lambda-list options '@get-state))
+
+  (defmacro def-state-method (name &rest args)
+    (%def-%-method name args))
+
+  (defmacro def-rule-generic (fun-name lambda-list &body options)
+    "Defines generic where first parameter must be state.
+These generic functions must be called only within with-atn"
+    (%def-%-generic fun-name lambda-list options '@get-rule))
+
+  (defmacro def-rule-method (name &rest args)
+    (%def-%-method name args)))
 
 ;;; Visual representation
 
@@ -374,15 +349,13 @@ These generic functions must be called only within with-atn"
           state state (type-of (@get-state state)) (@state-cond state) state (@state-nexts state)))
 
 (def-state-method state->dot ((state end-state) stream)
-  (format stream "~A [peripheries=2 label=\"~A\\n~A [~A]\\antype = ~A\"];~%"
+  (format stream "~A [peripheries=2 label=\"~A\\n~A [~A]\\ntype = ~A\"];~%"
           state state (@state-type state) (@state-cond state) (@state-end-type state)))
 
 (defun atn->dot (atn &optional (stream *standard-output*))
   "Output ATN into stream in dot format"
   (with-atn atn
-    (format stream "digraph g {~%")
-    (@traverse-atn (rcurry #'state->dot stream))
-    (format stream "}")))
+    (@atn->dot stream)))
 
 (defun @atn->dot (&optional (stream *standard-output*))
   "Output ATN into stream in dot format"
