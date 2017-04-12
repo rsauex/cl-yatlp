@@ -1,5 +1,5 @@
 (defpackage #:parser
-  (:use #:cl #:alexandria #:cond #:atn #:parser-states #:slow-jam #:lexer)
+  (:use #:cl #:alexandria #:cond #:atn #:parser-states #:lazy-list #:lexer)
   (:export ;;#:defparser
            ;;#:parser
    ))

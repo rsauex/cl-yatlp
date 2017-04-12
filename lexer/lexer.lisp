@@ -1,5 +1,5 @@
 (defpackage #:lexer
-  (:use #:cl #:alexandria #:slow-jam #:cond #:atn #:lexer-states 
+  (:use #:cl #:alexandria #:lazy-list #:cond #:atn #:lexer-states 
         #:lexer-creation #:lexer-transformation)
   (:export #:deflexer
            #:lexer))

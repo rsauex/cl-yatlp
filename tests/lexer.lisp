@@ -1,5 +1,5 @@
 (defpackage #:lexer-test
-  (:use #:cl #:slow-jam #:lexer #:prove))
+  (:use #:cl #:lazy-list #:lexer #:prove))
 
 (in-package #:lexer-test)
 

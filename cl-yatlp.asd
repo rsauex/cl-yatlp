@@ -2,10 +2,10 @@
   :description "Yet another tool for language processing"
   :author "Yurii Hryhorenko <yuragrig@ukr.net>"
   :depends-on (#:alexandria
-               #:eager-future2
-               #:slow-jam)
+               #:eager-future2)
   :serial t
-  :components ((:file "atn")
+  :components ((:file "lazy-list")
+               (:file "atn")
 
                (:file "lexer/cond")
                (:file "lexer/states")
