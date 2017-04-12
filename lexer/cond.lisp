@@ -117,7 +117,7 @@
         (if (char= next (third x))
             next
             (list :r next (third x))))
-       ((char= y (second x))
+       ((char= y (third x))
         (if (char= prev (second x))
             prev
             (list :r (second x) prev))))))
@@ -143,7 +143,13 @@
        ((char= (second y) (third x))
         (if (char= prev (second x))
             prev
-            (list :r (second x) prev))))))
+            (list :r (second x) prev)))
+       ((char= (second y) (second x))
+        (when (char< (third y) (third x))
+          (list :r (next-char (third y)) (third x))))
+       ((char= (third y) (third x))
+        (when (char> (second y) (second x))
+          (list :r (second x) (prev-char (second y))))))))
   ((:r :list)
    (reduce #'cond-intersection (mapcar (curry #'cond-difference x) y)))
   ((:list :char)

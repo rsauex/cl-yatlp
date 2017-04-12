@@ -1,60 +1,117 @@
-(defpackage #:lazy-list
-  (:use #:cl #:alexandria #:eager-future2)
-  (:export #:lcons
-           #:lcar
-           #:lcdr
-           #:lmapcar))
+(defpackage lazy-list
+  (:use :cl)
+  (:export :lcons
+           :empty?
+           :head
+           :tail
+           :to-list
+           :lmapcar
+           :range
+           :take
+           :drop
+           :filter
+           :levery
+           :|ETC...|))
+(in-package :lazy-list)
 
-(in-package #:lazy-list)
+(defclass lcons ()
+  ((val :initarg :val)))
 
-(defun lazy-cons-print (struct stream depth)
-  (declare (ignore depth))
-  (labels ((%print (struct depth)
-             (cond
-               ((null struct)
-                (format stream ")"))
-               ((null (lcdr struct))
-                (format stream "~S)" (lcar struct)))
-               ((= depth 5)
-                (format stream "~S ...)" (lcar struct)))
-               (t
-                (format stream "~S~% " (lcar struct))
-                (%print (lcdr struct) (1+ depth))))))
-    (format stream "(")
-    (%print struct 1)))
+(defmacro lcons (head tail)
+  `(make-instance 'lcons
+                  :val (cons ,head (lambda () ,tail))))
 
-(defstruct (lazy-cons
-            (:print-function lazy-cons-print)
-            (:constructor make-lcons (val next)))
-  val next)
+(defgeneric empty? (lcons))
+(defgeneric head (lcons))
+(defgeneric tail (lcons))
 
-(defmacro lcons (se1 se2)
-  `(make-lcons
-    (pcall (lambda () ,se1) :lazy)
-    (pcall (lambda () ,se2) :lazy)))
+(defmethod empty? ((lcons lcons))
+  nil)
 
-;; (defmacro llist (&rest args)
-;;   (reduce (lambda (x acc)
-;;             `(make-lcons
-;;               (pcall (lambda () ,x))
-;;               ,acc))
-;;           args :from-end t
-;;                :initial-value nil))
+(defmethod empty? ((lcons list))
+  (null lcons))
 
-;; (defmacro llist* (&rest args)
-;;   (reduce (lambda (x acc)
-;;             `(make-lcons
-;;               (pcall (lambda () ,x))
-;;               ,acc))
-;;           args :from-end t))
+(defmethod head ((lcons lcons))
+  (car (slot-value lcons 'val)))
 
-(defun lcar (list)
-  (touch (lazy-cons-val list)))
+(defmethod head ((lcons list))
+  (car lcons))
 
-(defun lcdr (list)
-  (touch (lazy-cons-next list)))
+(defmethod tail ((lcons lcons))
+  (funcall (cdr (slot-value lcons 'val))))
 
-(defun lmapcar (fn &rest lists)
-  (unless (some #'null lists)
-    (lcons (apply fn (mapcar #'lcar lists))
-           (lmapcar fn (mapcar #'lcdr lists)))))
+(defmethod tail ((lcons list))
+  (cdr lcons))
+
+(defun range (&optional a b c)
+  (labels ((inner (start end step)
+             (if (or
+                   (and (> step 0) (< start end))
+                   (and (< step 0) (> start end)))
+               (lcons start (inner (+ start step) end step))))
+           (infinite (n)
+             (lcons n (infinite (1+ n)))))
+    (if c
+      (inner a b c)
+      (if b
+        (inner a b 1)
+        (if a
+          (inner 0 a 1)
+          (infinite 0))))))
+
+(defun to-list (lcons &key max)
+  (let ((newlist '())
+        (items-added 0))
+    (loop while (and (not (null lcons))
+                     (not (and max (>= items-added max))))
+          do (progn
+               (incf items-added)
+               (push (head lcons) newlist)
+               (setq lcons (tail lcons))))
+    (values (reverse newlist) (not (empty? lcons)))))
+
+(defmethod print-object ((object lcons) stream)
+  (multiple-value-bind (list more) (to-list object :max 20)
+    (if more (setq list (append list (list '|ETC...|))))
+    (print list stream)))
+
+(defun lmapcar (f &rest lists)
+  (if (notany #'empty? lists)
+    (lcons (apply f (mapcar #'head lists))
+           (apply #'lmapcar f (mapcar #'tail lists)))))
+
+(defun last-val (lcons)
+  (if (tail lcons)
+    (last-val (tail lcons))
+    (head lcons)))
+
+(defun take (n lcons)
+  (if (and (> n 0) (not (empty? lcons)))
+    (lcons (head lcons) (take (1- n) (tail lcons)))))
+
+(defun drop (n lcons)
+  (if (> n 0)
+    (drop (1- n) (tail lcons))
+    lcons))
+
+(defun filter (p lcons)
+  (if (not (empty? lcons))
+    (let ((val (head lcons)))
+      (if (funcall p val)
+        (lcons val (filter p (tail lcons)))
+        (filter p (tail lcons))))))
+
+(defun lreduce (f lcons)
+  (let ((accumulator (head lcons)))
+    (setq lcons (tail lcons))
+    (loop while (not (empty? lcons))
+          do (progn
+               (setq accumulator (funcall f accumulator (head lcons)))
+               (setq lcons (tail lcons))))
+    accumulator))
+
+(defun levery (f &rest lists)
+  (if (some #'empty? lists)
+      t
+      (or (apply f (mapcar #'head lists))
+          (apply #'levery f (mapcar #'tail lists)))))

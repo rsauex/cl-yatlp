@@ -7,10 +7,10 @@
 
 (in-package #:lexer-states)
 
-(defclass simple-state (state) ())
+(defstate simple-state (state) ())
 
-(defclass eps-state (state) ())
+(defstate eps-state (state) ())
 
-(defclass loop-state (state) ())
+(defstate loop-state (state) ())
 
-(defclass ng-loop-state (loop-state) ())
+(defstate ng-loop-state (loop-state) ())
