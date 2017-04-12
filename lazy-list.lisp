@@ -1,4 +1,4 @@
-(defpackage lzay-list
+(defpackage lazy-list
   (:use :cl)
   (:export :lcons
            :empty?
@@ -12,7 +12,7 @@
            :filter
            :levery
            :|ETC...|))
-(in-package :slow-jam)
+(in-package :lazy-list)
 
 (defclass lcons ()
   ((val :initarg :val)))
