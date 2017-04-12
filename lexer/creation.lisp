@@ -93,9 +93,12 @@
     (with-atn atn 
       (let ((next-states (loop for rule in grammar
                                collect (let ((state (gensym)))
-                                         (@add-rule (first rule) state (rest (rest rule)))
+                                         (@add-rule (first rule) 'rule :state state :options (rest (rest rule)))
                                          (rule->state rule state)
                                          (unless (member :fragment (rest (rest rule)))
                                            state)))))
         (@add-state :start 'simple-state :nexts (remove-if #'null next-states))
+        (setf (gethash :order (@extra))
+              (loop for rule in grammar
+                    collect (first rule)))
         atn))))

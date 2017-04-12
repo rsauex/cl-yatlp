@@ -1,62 +1,66 @@
 (defpackage #:lexer
-  (:use #:cl #:alexandria #:cond #:atn #:lexer-states 
-        #:lexer-creation #:lexer-transformation #:lazy-list)
+  (:use #:cl #:alexandria #:slow-jam #:cond #:atn #:lexer-states 
+        #:lexer-creation #:lexer-transformation)
   (:export #:deflexer
            #:lexer))
 
 (in-package #:lexer)
 
-(defun atn->tagbody (atn fun-name)
-  (with-atn atn
-    (mappend (lambda (s)
-               (cond
-                 ((@typep s 'simple-state)
-                  `(,s
-                    (cond
-                      ,(if-let (end (first (member-if (lambda (s) (@typep s 'end-state)) (@state-nexts s))))
-                         `((null *cur*)
-                           (go ,end))
-                         `((null *cur*)
-                           ,(if (eq :start s)
-                                `(return-from ,fun-name (values :eof nil *line* *pos*))
-                                `(error "Unexpected EOF at ~A:~A" *line* *pos*))))
-                      ,@(mapcar (lambda (s)
-                                  `(,(cond->test (@state-cond s) '*cur*)
-                                    (next ,s)))
-                                (remove-if (lambda (s) (@typep s 'end-state)) (@state-nexts s)))
-                      (t
-                       ,(if-let (end (first (member-if (lambda (s) (@typep s 'end-state)) (@state-nexts s))))
-                          `(go ,end)
-                          `(progn
-                             (warn "Unexpected symbol ~S at ~A:~A" *cur* *line* *pos*)
-                             (read-char *stream* nil)
-                             (load-cur)
-                             ,(if (eq :start s)
-                                  `(return-from ,fun-name (values :skip "" *line* *pos*))
-                                  `(go ,s))))))))
-                 ((@typep s 'end-state)
-                  `(,s
-                    (return-from ,fun-name (values ',(if-let (skip? (member :skip (@state-end-options s)))
-                                                       (if (second skip?)
-                                                           :skip
-                                                           (@state-end-type s))
-                                                       (@state-end-type s))
-                                                   ,(if-let (transform (member :transform (@state-end-options s)))
-                                                      (cond
-                                                        ((symbolp (second transform))
-                                                         `',(second transform))
-                                                        ((listp transform)
-                                                         (cond
-                                                           ((null transform)
-                                                            `(out-no-add))
-                                                           ((eq 'function (first (second transform)))
-                                                            `(funcall ,(second transform) (out-no-add)))
-                                                           ((eq 'quote (first (second transform)))
-                                                            (second transform)))))
-                                                      `(intern (out-no-add)))
-                                                   *line*
-                                                   *pos*))))))
-             (hash-table-keys (atn::atn-table atn)))))
+(def-state-generic state->action (state fn-name))
+
+(def-state-method state->action ((state simple-state) fn-name)
+  (let ((next-end (first (member-if (rcurry #'@typep 'end-state) (@state-nexts state))))
+        (nexts-without-end (remove-if (rcurry #'@typep 'end-state) (@state-nexts state))))
+    `(cond
+       ((null *cur*)
+        ,(if next-end
+             `(go ,next-end)
+             `(error "Unexpected EOF at ~A:~A" *line* *pos*)))
+       ,@(mapcar (lambda (s)
+                   `(,(cond->test (@state-cond s) '*cur*)
+                     (next ,s)))
+                 nexts-without-end)
+       (t
+        ,(if next-end
+             `(go ,next-end)
+             `(progn
+                (warn "Unexpected symbol ~S at ~A:~A" *cur* *line* *pos*)
+                (read-char *stream* nil)
+                (load-cur)
+                ,(if (eq :start state)
+                     `(return-from ,fn-name (values :skip "" *line* *pos*))
+                     `(go ,state))))))))
+
+(def-state-method state->action ((state end-state) fn-name)
+  `(return-from ,fn-name
+     (values ',(if-let (skip? (member :skip (@state-end-options state)))
+                 (if (second skip?)
+                     :skip
+                     (@state-end-type state))
+                 (@state-end-type state))
+             ,(if-let (transform (member :transform (@state-end-options state)))
+                (cond
+                  ((symbolp (second transform))
+                   `',(second transform))
+                  ((listp transform)
+                   (cond
+                     ((null transform)
+                      `(out-no-add))
+                     ((eq 'function (first (second transform)))
+                      `(funcall ,(second transform) (out-no-add)))
+                     ((eq 'quote (first (second transform)))
+                      (second transform)))))
+                `(intern (out-no-add)))
+             *line*
+             *pos*)))
+
+(defun grammar->tagbody (grammar fn-name)
+  (with-atn (transf-atn (grammar->atn grammar))
+    `(tagbody
+        (go :start)
+        ,@(mappend (lambda (s)
+                     `(,s ,(state->action s fn-name)))
+                   (@states)))))
 
 
 
@@ -64,7 +68,6 @@
 
 
 (defvar *stream*)
-(defvar *res-stream*)
 (defvar *cur*)
 (defvar *cur-res*)
 (defvar *line*)
@@ -115,37 +118,41 @@
 
 (defgeneric lexer (grammar str))
 
+
+(defun make-lexer-method (grammar lexer-impl-fn)
+  `(defmethod lexer ((grammar (eql ',grammar)) stream)
+     (let* ((*stream* stream)
+            (*cur* nil)
+            (*line* 1)
+            (*pos* 0)
+            (*returnp* nil)
+            (*newlinep* nil))
+       (labels ((%lexer (*cur* *line* *pos* *returnp* *newlinep*)
+                  (let ((start-line *line*)
+                        (start-pos *pos*))
+                    (multiple-value-bind (type text)
+                        (,lexer-impl-fn stream)
+                      (let ((cur *cur*)
+                            (line *line*)
+                            (pos *pos*)
+                            (returnp *returnp*)
+                            (newlinep *newlinep*))
+                        (if (eq :skip type)
+                            (%lexer cur line pos returnp newlinep)
+                            (if (eq type :eof)
+                                (list (list type text start-line start-pos))
+                                (lcons (list type text start-line start-pos)
+                                       (%lexer cur line pos returnp newlinep)))))))))
+         (load-cur)
+         (%lexer *cur* *line* *pos* *returnp* *newlinep*)))))
+
 (defmacro deflexer (grammar &body rules)
   (let ((lexer-sym (gensym)))
     `(progn
-       (defun ,lexer-sym ()
-         (tagbody
-            (go :start)
-            ,@(atn->tagbody (transf-atn (grammar->atn rules)) lexer-sym)))
-       (defmethod lexer ((grammar (eql ',grammar)) stream)
-         (let* ((*stream* stream)
-                (*res-stream* nil)
-                (*cur-res* nil)
-                (*cur* nil)
-                (*line* 1)
-                (*pos* 0)
-                (*returnp* nil)
-                (*newlinep* nil))
-           (labels ((%lexer (*stream* *res-stream* *cur-res* *cur* *line* *pos* *returnp* *newlinep*)
-                      (let ((start-line *line*)
-                            (start-pos *pos*))
-                        (multiple-value-bind (type text)
-                            (,lexer-sym)
-                          (let ((stream *stream*)
-                                (cur *cur*)
-                                (line *line*)
-                                (pos *pos*)
-                                (returnp *returnp*)
-                                (newlinep *newlinep*))
-                            (if (eq :skip type)
-                                (%lexer stream nil nil cur line pos returnp newlinep)
-                                (unless (eq type :eof)
-                                  (lcons (list type text start-line start-pos)
-                                         (%lexer stream nil nil cur line pos returnp newlinep)))))))))
-             (load-cur)
-             (%lexer *stream* nil nil *cur* *line* *pos* *returnp* *newlinep*)))))))
+       (defun ,lexer-sym (stream)
+         (let ((*stream* stream)
+               *cur-res*)
+           (when (null *cur*)
+             (return-from ,lexer-sym (values :eof nil *line* *pos*)))
+           ,(grammar->tagbody rules lexer-sym)))
+       ,(make-lexer-method grammar lexer-sym))))
