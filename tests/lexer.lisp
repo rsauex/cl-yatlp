@@ -15,19 +15,21 @@
 
 (def-lexer-test lexer.1 'test-lex1
   "abc sdf her"
-  (word |abc| 1 1)
-  (word |sdf| 1 5)
-  (word |her| 1 9))
+  (word test-lex1::|abc| 1 1)
+  (word test-lex1::|sdf| 1 5)
+  (word test-lex1::|her| 1 9)
+  (:eof nil 1 11))
 
 (def-lexer-test lexer.2 'test-lex1
   "abcde
 asdffgh dfghd adf
 dsfg"
-  (word |abcde| 1 1)
-  (word |asdffgh| 2 1)
-  (word |dfghd| 2 9)
-  (word |adf| 2 15)
-  (word |dsfg| 3 1))
+  (word test-lex1::|abcde| 1 1)
+  (word test-lex1::|asdffgh| 2 1)
+  (word test-lex1::|dfghd| 2 9)
+  (word test-lex1::|adf| 2 15)
+  (word test-lex1::|dsfg| 3 1)
+  (:eof nil 3 4))
 
 
 ;; (deflexer signal
