@@ -1,40 +1,35 @@
 (defpackage #:lexer-test
-  (:use #:cl #:lazy-list #:lexer #:prove))
+  (:use #:cl #:lazy-list #:lexer #:small-tests))
 
 (in-package #:lexer-test)
 
-(defmacro deftest (grammar str &rest forms)
-  `(let ((result (lexer ',grammar ,(make-string-input-stream str))))
-     (ok (levery (lambda (get exp)
-                   (and (eq (first get) (first exp))
-                        (eq (second get) (second exp))
-                        (= (third get) (third exp))
-                        (= (fourth get) (fourth exp))))
-                 result ',forms))))
-
-(plan 2)
+(defmacro def-lexer-test (name grammar str &rest forms)
+  `(deftest ,name
+     (let ((result (lexer ,grammar (make-string-input-stream ,str))))
+       (levery (lambda (get exp) (assert (equal get exp)))
+               result ',forms))))
 
 (deflexer test-lex1
   (word (:+ (:r #\a #\z)))
   (whitespace (:or #\Space #\Newline #\Return) :skip t))
 
-(deftest test-lex1
+(def-lexer-test lexer.1 'test-lex1
   "abc sdf her"
-  (word |abc| 1 1)
-  (word |sdf| 1 5)
-  (word |her| 1 9))
+  (word test-lex1::|abc| 1 1)
+  (word test-lex1::|sdf| 1 5)
+  (word test-lex1::|her| 1 9)
+  (:eof nil 1 11))
 
-(deftest test-lex1
+(def-lexer-test lexer.2 'test-lex1
   "abcde
 asdffgh dfghd adf
 dsfg"
-  (word |abcde| 1 1)
-  (word |asdffgh| 2 1)
-  (word |dfghd| 2 9)
-  (word |adf| 2 15)
-  (word |dsfg| 3 1))
-
-(finalize)
+  (word test-lex1::|abcde| 1 1)
+  (word test-lex1::|asdffgh| 2 1)
+  (word test-lex1::|dfghd| 2 9)
+  (word test-lex1::|adf| 2 15)
+  (word test-lex1::|dsfg| 3 1)
+  (:eof nil 3 4))
 
 
 ;; (deflexer signal

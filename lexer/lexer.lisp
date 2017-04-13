@@ -6,9 +6,9 @@
 
 (in-package #:lexer)
 
-(def-state-generic state->action (state fn-name))
+(def-state-generic state->action (state fn-name grammar))
 
-(def-state-method state->action ((state simple-state) fn-name)
+(def-state-method state->action ((state simple-state) fn-name grammar)
   (let ((next-end (first (member-if (rcurry #'@typep 'end-state) (@state-nexts state))))
         (nexts-without-end (remove-if (rcurry #'@typep 'end-state) (@state-nexts state))))
     `(cond
@@ -31,7 +31,7 @@
                      `(return-from ,fn-name (values :skip "" *line* *pos*))
                      `(go ,state))))))))
 
-(def-state-method state->action ((state end-state) fn-name)
+(def-state-method state->action ((state end-state) fn-name grammar)
   `(return-from ,fn-name
      (values ',(if-let (skip? (member :skip (@state-end-options state)))
                  (if (second skip?)
@@ -50,16 +50,16 @@
                       `(funcall ,(second transform) (out-no-add)))
                      ((eq 'quote (first (second transform)))
                       (second transform)))))
-                `(intern (out-no-add)))
+                `(intern (out-no-add) ',grammar))
              *line*
              *pos*)))
 
-(defun grammar->tagbody (grammar fn-name)
-  (with-atn (transf-atn (grammar->atn grammar))
+(defun grammar->tagbody (rules fn-name grammar)
+  (with-atn (transf-atn (grammar->atn rules))
     `(tagbody
         (go :start)
         ,@(mappend (lambda (s)
-                     `(,s ,(state->action s fn-name)))
+                     `(,s ,(state->action s fn-name grammar)))
                    (@states)))))
 
 
@@ -149,10 +149,11 @@
 (defmacro deflexer (grammar &body rules)
   (let ((lexer-sym (gensym)))
     `(progn
+       (defpackage ,grammar)
        (defun ,lexer-sym (stream)
          (let ((*stream* stream)
                *cur-res*)
            (when (null *cur*)
              (return-from ,lexer-sym (values :eof nil *line* *pos*)))
-           ,(grammar->tagbody rules lexer-sym)))
+           ,(grammar->tagbody rules lexer-sym grammar)))
        ,(make-lexer-method grammar lexer-sym))))
