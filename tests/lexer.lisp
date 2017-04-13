@@ -1,18 +1,19 @@
 (defpackage #:lexer-test
-  (:use #:cl #:lazy-list #:lexer #:prove))
+  (:use #:cl #:lazy-list #:lexer #:small-tests))
 
 (in-package #:lexer-test)
 
-(defmacro deftest (grammar str &rest forms)
-  `(let ((result (lexer ',grammar ,(make-string-input-stream str))))
-     (ok (levery (lambda (get exp)
-                   (and (eq (first get) (first exp))
-                        (eq (second get) (second exp))
-                        (= (third get) (third exp))
-                        (= (fourth get) (fourth exp))))
-                 result ',forms))))
+(defmacro def-lexer-test (name grammar str &rest forms)
+  `(deftest ,name
+     (let ((result (lexer ',grammar ,(make-string-input-stream str))))
+       (levery (lambda (get exp) (assert (equal get exp)))
+               ;; (lambda (get exp)
+               ;;   (and (eq (first get) (first exp))
+               ;;        (eq (second get) (second exp))
+               ;;        (= (third get) (third exp))
+               ;;        (= (fourth get) (fourth exp))))
+               result ',forms))))
 
-(plan 2)
 
 (deflexer test-lex1
   (word (:+ (:r #\a #\z)))
@@ -33,8 +34,6 @@ dsfg"
   (word |dfghd| 2 9)
   (word |adf| 2 15)
   (word |dsfg| 3 1))
-
-(finalize)
 
 
 ;; (deflexer signal

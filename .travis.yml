@@ -31,6 +31,7 @@ install:
       curl https://raw.githubusercontent.com/luismbo/cl-travis/master/install.sh | sh;
     fi     
   - cl -l alexandria -l eager-future2 -e '(ql-util:without-prompting (ql:add-to-init-file))'
+  - git clone git://github.com/rsauex/small-tests.git ~/lisp/small-tests
 
 # this bit is just testing that travis correctly sets up ASDF to find
 # systems placed somewhere within ~/lisp. You can remove this section
@@ -43,7 +44,9 @@ before_script:
 # to do unit testing; other frameworks will have different ways of
 # determining whether a test suite fails or succeeds.
 script:
-  - cl -e '(ql:quickload :cl-yatlp)'
+  - cl -e '(ql:quickload :cl-yatlp)
+           (ql:quickload :cl-yatlp-test)
+           (assert (small-tests:run-tests))'
            #(rtest:do-tests)
            #(unless (null (rtest:pending-tests))
            #  (uiop:quit 1))'
