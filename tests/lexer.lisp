@@ -19,13 +19,13 @@
   (word (:+ (:r #\a #\z)))
   (whitespace (:or #\Space #\Newline #\Return) :skip t))
 
-(deftest test-lex1
+(deftest lexer.1 test-lex1
   "abc sdf her"
   (word |abc| 1 1)
   (word |sdf| 1 5)
   (word |her| 1 9))
 
-(deftest test-lex1
+(deftest lexer.2 test-lex1
   "abcde
 asdffgh dfghd adf
 dsfg"
