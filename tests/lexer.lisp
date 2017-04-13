@@ -5,27 +5,21 @@
 
 (defmacro def-lexer-test (name grammar str &rest forms)
   `(deftest ,name
-     (let ((result (lexer ',grammar ,(make-string-input-stream str))))
+     (let ((result (lexer ,grammar (make-string-input-stream ,str))))
        (levery (lambda (get exp) (assert (equal get exp)))
-               ;; (lambda (get exp)
-               ;;   (and (eq (first get) (first exp))
-               ;;        (eq (second get) (second exp))
-               ;;        (= (third get) (third exp))
-               ;;        (= (fourth get) (fourth exp))))
                result ',forms))))
-
 
 (deflexer test-lex1
   (word (:+ (:r #\a #\z)))
   (whitespace (:or #\Space #\Newline #\Return) :skip t))
 
-(deftest lexer.1 test-lex1
+(def-lexer-test lexer.1 'test-lex1
   "abc sdf her"
   (word |abc| 1 1)
   (word |sdf| 1 5)
   (word |her| 1 9))
 
-(deftest lexer.2 test-lex1
+(def-lexer-test lexer.2 'test-lex1
   "abcde
 asdffgh dfghd adf
 dsfg"
