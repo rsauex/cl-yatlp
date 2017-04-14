@@ -7,11 +7,17 @@
   :components ((:file "lazy-list")
                (:file "atn")
 
-               (:file "lexer/cond")
-               (:file "lexer/states")
-               (:file "lexer/creation")
-               (:file "lexer/transformation")
-               (:file "lexer/lexer")
+               (:module lexer
+                :serial t
+                :components ((:file "cond")
+                             (:file "states")
+                             (:file "creation")
+                             (:file "transformation")
+                             (:file "lexer")))
 
-               (:file "parser/states")
-               (:file "parser/parser")))
+               (:module parser
+                :serial t
+                :components ((:file "states")
+                             (:file "creation")
+                             (:file "transformation")
+                             (:file "parser")))))
