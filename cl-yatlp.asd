@@ -14,4 +14,6 @@
                (:file "lexer/lexer")
 
                (:file "parser/states")
+               (:file "parser/creation")
+               (:file "parser/transformation")
                (:file "parser/parser")))
