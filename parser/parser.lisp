@@ -18,44 +18,26 @@
 (defun mk-term* (type result)
   `(values (cons (make-instance ',type) ,result) stream))
 
-(defun error-lex (stream type)
-  (if (eq :eof (first (head stream)))
-      (error "Unexpected EOF at ~A:~A. Token of type ~A expected."
-             (third (head stream))
-             (fourth (head stream))
-             type)
-      (error "Unexpected token \"~A\" of type ~A at ~A:~A. Token of type ~A expected."
-             (second (head stream))
-             (first (head stream))
-             (third (head stream))
-             (fourth (head stream))
-             type)))
-
-(defun error-str (stream str)
-  (if (eq :eof (first (head stream)))
-      (error "Unexpected EOF at ~A:~A. \"~A\" expected."
-             (third (head stream))
-             (fourth (head stream))
-             str)
-      (error "Unexpected token \"~A\" of type ~A at ~A:~A. \"~A\" expected."
-             (second (head stream))
-             (first (head stream))
-             (third (head stream))
-             (fourth (head stream))
-             str)))
-
-(defun error-alt (stream alts)
-  (if (eq :eof (first (head stream)))
-      (error "Unexpected EOF at ~A:~A. Either of ~A expected."
-             (third (head stream))
-             (fourth (head stream))
-             alts)
-      (error "Unexpected token \"~A\" of type ~A at ~A:~A. Either of ~A expected."
-             (second (head stream))
-             (first (head stream))
-             (third (head stream))
-             (fourth (head stream))
-             alts)))
+(defun parser-error (stream type &rest values)
+  (let ((last-part
+          (case type
+            (:lex "Token of type ~A expected.")
+            (:str "\"~A\" expected.")
+            (:alt "Either of ~A expected.")
+            (:cons "Rule ~A does not consume all the input."))))
+    (if (eq :eof (first (head stream)))
+        (apply #'error
+               (concatenate 'string "Unexpected EOF at ~A:~A. " last-part)
+               (third (head stream))
+               (fourth (head stream))
+               values)
+        (apply #'error
+               (concatenate 'string "Unexpected token \"~A\" of type ~A at ~A:~A. " last-part)
+               (second (head stream))
+               (first (head stream))
+               (third (head stream))
+               (fourth (head stream))
+               values))))
 
 (defun state->cond (state)
   (let ((first (first-for-state state)))
@@ -89,7 +71,8 @@
                       (error "Mimic rule must be the only one in chain")
                       `(t (values ,(first results) stream)))
                   `(t ,(state->action end results)))
-              `(t (error "No alt!")))))))
+              `(t (parser::parser-error stream :alt ',(mappend #'first-for-state
+                                                               states))))))))
 
 (def-state-generic state->action (state results))
 
@@ -105,14 +88,14 @@
          (let ((,result-sym (second (head stream)))
                (stream (tail stream)))
            ,(states-list->action (@state-nexts state) (cons result-sym results)))
-         (parser::error-lex stream ',(@state-lex state)))))
+         (parser::parser-error stream :lex ',(@state-lex state)))))
 
 (def-state-method state->action ((state str-state) results)
   (let ((str `(once (second ,(head-parse-str (@state-str state))))))
     `(if (eq ,str (second (head stream)))
          (let ((stream (tail stream)))
            ,(states-list->action (@state-nexts state) results))
-         (parser::error-str stream ',(@state-str state)))))
+         (parser::parser-error stream :str ',(@state-str state)))))
 
 (def-state-method state->action ((state mimic-state) results)
   (if (null (rest (@state-nexts state))) 
@@ -146,7 +129,9 @@
                 body-cond
                 `(eq ,delim (second (head stream))))
            (multiple-value-bind (,result1 stream)
-               (,fn-name (tail stream))
+               (,fn-name ,(if (eq :eps delim)
+                              `stream
+                              `(tail stream)))
              (values (cons ,result ,result1) stream))
            (values (list ,result) stream)))))
 
@@ -173,7 +158,7 @@
            (multiple-value-bind (,result stream)
                (,helper-fn stream)
              ,(mk-term* rule result)))
-         (parser::error-alt stream ',body-first))))
+         (parser::parser-error stream :alt ',body-first))))
 
 (defun rules->defs ()
   (let (body)
@@ -200,10 +185,14 @@
                                 `(,(fn-name-for-rule rule) (stream)
                                   ,(rule->body rule)))
                               (@rules))
-               (case start-rule
-                 ,@(mapcar (lambda (r)
-                             `(,r (,(fn-name-for-rule r) stream)))
-                    (@rules)))))
+               (multiple-value-bind (res stream-rest)
+                   (case start-rule
+                     ,@(mapcar (lambda (r)
+                                 `(,r (,(fn-name-for-rule r) stream)))
+                        (@rules)))
+                 (unless (eq :eof (first (head stream-rest)))
+                   (parser::parser-error stream-rest :cons start-rule))
+                 res)))
 
            (defmethod parser ((grammar (eql ',grammar)) stream &optional (start-rule ',(@extra :start-rule)))
              (,parser-sym stream start-rule)))))))
@@ -235,3 +224,73 @@
                        val
                        (setf (gethash val-sym %%vals) (funcall val-fn)))))))
       `(funcall ,fn (lambda () ,@body)))))
+
+
+(defun print-term (term &optional (stream *standard-output*))
+  (let ((*standard-output* stream)
+        (*print-pretty* t)
+        (*print-right-margin* 88)
+        (*print-miser-width* nil)
+        (no-space? t))
+    (labels ((%print-loop (format delim components)
+               (when components
+                 (unless (eq :eps delim)
+                   (princ delim))
+                 (%print-with-format format (list (first components)))
+                 (%print-loop format delim (rest components))))
+             (%print-with-format (format components)
+               (pprint-newline :fill)
+               (when format
+                 (if (stringp (first format))
+                     (progn
+                       (if no-space?
+                           (setf no-space? nil)
+                           (princ " "))
+                       (princ (first format))
+                       (%print-with-format (rest format) components))
+                     (case (first format)
+                       (:{
+                        (multiple-value-bind (format comps)
+                            (pprint-logical-block (nil nil)
+                              (%print-with-format (rest format) components))
+                          (%print-with-format format comps)))
+                       (:}
+                        (values format components))
+                       (:v
+                        (pprint-newline :mandatory)
+                        (setf no-space? t)
+                        (%print-with-format (rest format) components))
+                       (:>
+                        (pprint-indent :block 3)
+                        (%print-with-format (rest format) components))
+                       (:<
+                        (pprint-indent :block 0)
+                        (%print-with-format (rest format) components))
+                       (:.
+                        (setf no-space? t)
+                        (%print-with-format (rest format) components))
+                       (:!
+                        (pprint-indent :current 1)
+                        (%print-with-format (rest format) components))
+                       (:lex
+                        (if no-space?
+                            (setf no-space? nil)
+                            (princ " "))
+                        (princ (first components))
+                        (%print-with-format (rest format) (rest components)))
+                       (:_
+                        (%print (first components))
+                        (%print-with-format (rest format) (rest components)))
+                       ((:+ :*)
+                        (when components
+                          (%print-with-format (rest (rest format)) (list (first components)))
+                          (%print-loop (rest (rest format)) (second format) (rest components))))))))
+             (%print (term)
+               (let ((format (term-format (first term))))
+                 (when format
+                   (%print-with-format format (rest term))))))
+      (pprint-logical-block (*standard-output* nil)
+        (%print term)))))
+
+(defun parse-str (grammar str rule)
+  (parser grammar (lexer grammar (make-string-input-stream str)) rule))
