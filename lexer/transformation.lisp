@@ -113,7 +113,7 @@
 (defun get-best-end (nexts)
   (let* ((ends (remove-if-not (lambda (s) (@typep s 'end-state)) nexts))
          (ends-types (mapcar #'@state-end-type ends))
-         (name (first (member-if (lambda (name) (member name ends-types)) (gethash :order (@extra))))))
+         (name (first (member-if (lambda (name) (member name ends-types)) (@extra :order)))))
     (first (member-if (lambda (s) (eq name (@state-end-type s))) ends))))
 
 (def-state-method add-to-new-normalized-rule ((state state) &optional in-loop?)

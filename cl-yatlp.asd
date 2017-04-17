@@ -1,8 +1,7 @@
 (asdf:defsystem #:cl-yatlp
   :description "Yet another tool for language processing"
   :author "Yurii Hryhorenko <yuragrig@ukr.net>"
-  :depends-on (#:alexandria
-               #:eager-future2)
+  :depends-on (#:alexandria)
   :serial t
   :components ((:file "lazy-list")
                (:file "atn")

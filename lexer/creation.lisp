@@ -98,7 +98,7 @@
                                          (unless (member :fragment (rest (rest rule)))
                                            state)))))
         (@add-state :start 'simple-state :nexts (remove-if #'null next-states))
-        (setf (gethash :order (@extra))
+        (setf (@extra :order)
               (loop for rule in grammar
                     collect (first rule)))
         atn))))
