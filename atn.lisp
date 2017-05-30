@@ -1,5 +1,5 @@
 (defpackage #:atn
-  (:use #:cl #:alexandria #:eager-future2)
+  (:use #:cl #:alexandria)
   (:export #:make-atn
 
            #:defstate
@@ -33,6 +33,8 @@
 
            #:with-visiting
            #:visit
+
+           #:@traverse-atn
 
            #:def-state-generic
            #:def-state-method
@@ -121,6 +123,31 @@
 
 ;;; Tools
 
+(defun @state-nexts-without-end (state)
+  (remove-if (rcurry #'@typep 'end-state) (@state-nexts state)))
+
+(defun delayed-rule (name)
+  (lambda () (rule-state (@get-rule name))))
+
+(defun @state-call-to (state)
+  (or (let ((val (call-to (@get-state state))))
+        (if (functionp val)
+            (setf (call-to (@get-state state)) (funcall val))
+            val))
+      (error "call-to cannot be NIL")))
+
+(define-setf-expander @state-call-to (x &environment env)
+  (multiple-value-bind (dummies vals newval setter getter)
+      (get-setf-expansion x env)
+    (declare (ignorable newval setter))
+    (let ((store (gensym)))
+      (values dummies
+              vals
+              `(,store)
+              `(progn (setf (call-to (@get-state ,getter)) ,store) ,store)
+              `(@state-nexts ,getter)))))
+
+
 (defun apply-delta (atn delta)
   (maphash (lambda (id state)
              (if (eq :rem state)
@@ -147,8 +174,20 @@
          (progn ,@body)
        (apply-delta atn::*atn* atn::*delta*))))
 
-(defun @extra ()
-  (atn-extra *atn*))
+(defun @extra (name)
+  (gethash name (atn-extra *atn*)))
+
+(define-setf-expander @extra (x &environment env)
+  (multiple-value-bind (dummies vals newval setter getter)
+      (get-setf-expansion x env)
+    (declare (ignorable newval setter))
+    (let ((store (gensym)))
+      (values dummies
+              vals
+              `(,store)
+              `(progn (setf (gethash ,getter (atn-extra atn::*atn*)) ,store) ,store)
+              `(@state-nexts ,getter)))))
+
 
 (defun add-rule (atn rule type &rest args)
   "Add rule into atn"
@@ -156,9 +195,7 @@
 
 (defun @add-rule (rule type &rest args)
   "Add rule into current atn"
-  (if *atn*
-      (apply #'add-rule *delta* rule type args)
-      (error "@ functions must be used inside of WITH-ATN")))
+  (apply #'add-rule *delta* rule type args))
 
 (defun get-rule (atn rule)
   "Get state for rule with name RULE."
@@ -168,10 +205,8 @@
 
 (defun @get-rule (rule)
   "Get state for rule with name RULE."
-  (if *atn*
-      (or (gethash rule (atn-table *delta*))
-          (get-rule *atn* rule))
-      (error "@ functions must be used inside of WITH-ATN")))
+  (or (gethash rule (atn-table *delta*))
+      (get-rule *atn* rule)))
 
 (defun add-state (atn state type &rest args)
   "Add state named STATE of type TYPE into ATN.
@@ -182,9 +217,7 @@ ARGS are passed to the constructor of class TYPE"
 (defun @add-state (state type &rest args)
   "Add state named STATE of type TYPE into current atn
 ARGS are passed to the constructor of class TYPE"
-  (if *atn*
-      (apply #'add-state *delta* state type args)
-      (error "@ functions must be used inside of WITH-ATN")))
+  (apply #'add-state *delta* state type args))
 
 (defun get-state (atn state)
   "Get state from ATN. Error if STATE is not in ATN"
@@ -195,71 +228,45 @@ ARGS are passed to the constructor of class TYPE"
 (defun @get-state (state)
   "Get state from current atn.
 Error if STATE is not in current atn"
-  (if *atn*
-      (or (gethash state (atn-table *delta*))
-          (get-state *atn* state))
-      (error "@ functions must be used inside of WITH-ATN")))
+  (or (gethash state (atn-table *delta*))
+      (get-state *atn* state)))
 
 (defun @state-type (state)
+  "Returns type of the given state"
   (type-of (@get-state state)))
 
 (defun @typep (state type)
+  "Returns t when `state' is of type `type'.
+nil otherwise."
   (if-let (s (@get-state state))
     (typep s type)
     (error "No such state: ~S" state)))
-
-(defun delayed-rule (name)
-  (pcall (lambda () (rule-state (@get-rule name))) :lazy))
-
-(defun @state-call-to (state)
-  (or (touch (call-to (@get-state state)))
-      (error "call-to cannot be NIL")))
-
-(define-setf-expander @state-call-to (x &environment env)
-  (multiple-value-bind (dummies vals newval setter getter)
-      (get-setf-expansion x env)
-    (declare (ignorable newval setter))
-    (let ((store (gensym)))
-      (values dummies
-              vals
-              `(,store)
-              `(progn (setf (call-to (@get-state ,getter)) ,store) ,store)
-              `(@state-nexts ,getter)))))
 
 (defun rem-state (atn state)
   (remhash state (atn-table atn)))
 
 (defun @rem-state (state)
   "Remove state from current atn"
-  (if *atn*
-      (setf (gethash state (atn-table *delta*)) :rem)
-      (error "@ functions must be used inside of WITH-ATN")))
+  (setf (gethash state (atn-table *delta*)) :rem))
 
 (defun rem-rule (atn rule)
   (remhash rule (atn-rules atn)))
 
 (defun @rem-rule (rule)
   "Remove rule from current atn"
-  (if *atn*
-      (setf (gethash rule (atn-rules *delta*)) :rem)
-      (error "@ functions must be used inside of WITH-ATN")))
+  (setf (gethash rule (atn-rules *delta*)) :rem))
 
 (defun @states ()
-  (if *atn*
-      (union (hash-table-keys (atn-table *atn*))
-             (remove-if (lambda (s) (eq :rem (@get-state s)))
-                        (hash-table-keys (atn-table *delta*))))
-      (error "@ functions must be used inside of WITH-ATN")))
-
-(defun @state-nexts-without-end (state)
-  (remove-if (lambda (s) (@typep s 'end-state)) (@state-nexts state)))
+  "Get all the states from current atn"
+  (union (hash-table-keys (atn-table *atn*))
+         (remove-if (lambda (s) (eq :rem (@get-state s)))
+                    (hash-table-keys (atn-table *delta*)))))
 
 (defun @rules ()
-  (if *atn*
-      (union (hash-table-keys (atn-rules *atn*))
-             (remove-if (lambda (s) (eq :rem (@get-rule s)))
-                        (hash-table-keys (atn-rules *delta*))))
-      (error "@ functions must be used inside of WITH-ATN")))
+  "Get all the rules from current atn"
+  (union (hash-table-keys (atn-rules *atn*))
+         (remove-if (lambda (s) (eq :rem (@get-rule s)))
+                    (hash-table-keys (atn-rules *delta*)))))
 
 ;;; Visiting
 
@@ -268,15 +275,12 @@ Error if STATE is not in current atn"
 
 (defmacro with-visiting (&body body)
   "Allows using of visit fn"
-  `(let ((*visited*))
+  `(let (atn::*visited*)
      ,@body))
 
 (defun visit (state)
-  (if (member state *visited*)
-      state
-      (progn
-        (push state *visited*)
-        nil)))
+  (or (first (member state *visited*))
+      (not (push state *visited*))))
 
 ;;; Traversal
 
@@ -285,7 +289,7 @@ Error if STATE is not in current atn"
 
 ;;; Generic
 
-(eval-when (:compile-toplevel :execute)
+(eval-when (:compile-toplevel :load-toplevel)
   (defun %def-%-generic (fun-name lambda-list options getter)
     (multiple-value-bind (required optional rest keys)
         (parse-ordinary-lambda-list lambda-list) 
@@ -352,13 +356,13 @@ These generic functions must be called only within with-atn"
   (format stream "~A [peripheries=2 label=\"~A\\n~A [~A]\\ntype = ~A\"];~%"
           state state (@state-type state) (@state-cond state) (@state-end-type state)))
 
-(defun atn->dot (atn &optional (stream *standard-output*))
-  "Output ATN into stream in dot format"
-  (with-atn atn
-    (@atn->dot stream)))
-
 (defun @atn->dot (&optional (stream *standard-output*))
   "Output ATN into stream in dot format"
   (format stream "digraph g {~%")
   (@traverse-atn (rcurry #'state->dot stream))
   (format stream "}"))
+
+(defun atn->dot (atn &optional (stream *standard-output*))
+  "Output ATN into stream in dot format"
+  (with-atn atn
+    (@atn->dot stream)))

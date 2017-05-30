@@ -4,7 +4,8 @@
            #:first-for-state
            #:follow-for-rule
            #:follow-for-state
-           #:transform))
+           #:transform
+           #:get-rule-for-state))
 
 (in-package #:parser-transformation)
 
