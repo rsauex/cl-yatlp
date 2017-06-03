@@ -258,13 +258,15 @@ nil otherwise."
 
 (defun @states ()
   "Get all the states from current atn"
-  (union (hash-table-keys (atn-table *atn*))
+  (union (remove-if (lambda (s) (eq :rem (@get-state s)))
+                    (hash-table-keys (atn-table *atn*)))
          (remove-if (lambda (s) (eq :rem (@get-state s)))
                     (hash-table-keys (atn-table *delta*)))))
 
 (defun @rules ()
   "Get all the rules from current atn"
-  (union (hash-table-keys (atn-rules *atn*))
+  (union (remove-if (lambda (s) (eq :rem (@get-rule s)))
+                    (hash-table-keys (atn-rules *atn*)))
          (remove-if (lambda (s) (eq :rem (@get-rule s)))
                     (hash-table-keys (atn-rules *delta*)))))
 

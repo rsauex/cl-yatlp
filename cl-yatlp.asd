@@ -5,6 +5,7 @@
   :serial t
   :components ((:file "lazy-list")
                (:file "atn")
+               (:file "common")
 
                (:module lexer
                 :serial t

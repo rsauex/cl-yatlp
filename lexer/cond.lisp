@@ -75,7 +75,7 @@
          (when (char= a b) a))))
   ((:char :~)
    (unless (cond-intersection x (rest y)) x))
-  ((:range :~)
+  ((:r :~)
    (cond-difference x (rest y)))
   ((:list :~)
    (cond-difference x (rest y)))
@@ -341,5 +341,7 @@
         `(not ,(cond->test (rest cond) var)))
        (t
         `(or ,@(mapcar (rcurry #'cond->test var) cond)))))
+    ((eq t cond)
+     t)
     (t
      (error "Malformed cond: ~A" cond))))

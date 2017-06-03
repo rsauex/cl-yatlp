@@ -1,63 +1,40 @@
 (defpackage #:lexer-transformation
   (:use #:cl #:alexandria #:cond #:atn #:lexer-states #:lexer-creation)
-  (:export #:transf-atn))
+  (:export #:nfa->dfa))
 
 (in-package #:lexer-transformation)
 
-(def-state-generic add-to-new-normalized-rule (state &optional in-loop?))
+(def-state-generic convert-state (state &optional in-loop?))
 (def-state-generic get-for-nexts (state))
 
 (defun possible-values (conds)
-  (labels ((%all-intersections (c rest acc)
-             (if (null rest)
-                 acc
-                 (%all-intersections
-                  (first rest)
-                  (rest rest)
-                  (reduce (lambda (acc rest-c)
-                            (if-let (res (cond-intersection c rest-c))
-                              (cons res acc)
-                              acc))
-                          rest :initial-value acc)))))
-    (let ((inters (remove-duplicates (%all-intersections (first conds) (rest conds) nil))))
+  (labels ((%all-intersections (conds)
+             (loop for (c . rest) on conds
+                   append (remove nil (reduce #'cons rest
+                                              :initial-value nil
+                                              :from-end t
+                                              :key (lambda (rest-c) (cond-intersection c rest-c)))))))
+    (let ((inters (remove-duplicates (%all-intersections conds))))
       (if (null inters)
           conds
           (possible-values
            (remove-duplicates
-            (reduce (lambda (acc c)
-                      (if-let (res (cond-difference c inters))
-                        (cons res acc)
-                        acc))
-                    conds :initial-value inters)))))))
+            (remove nil
+                    (reduce #'cons conds
+                            :initial-value inters
+                            :from-end t
+                            :key (lambda (c) (cond-difference c inters))))))))))
 
-(defun get-nexts-for-call (state nexts)
-  (ecase (@state-type state)
-    (simple-state
-     (if (eq t (@state-cond state))
-         (mappend (lambda (s) (get-nexts-for-call s nexts))
-                  (@state-nexts state))
-         (let ((new-sym (gensym)))
-           (@add-state new-sym 'simple-state :cond (@state-cond state)
-                                             :nexts (mapcar (lambda (s)
-                                                              (let ((next-call (gensym)))
-                                                                (@add-state next-call 'call-state :call-to s 
-                                                                                                  :nexts nexts)
-                                                                next-call))
-                                                            (@state-nexts state)))
-           (list new-sym))))
-    (end-state
-     (mappend #'get-nexts nexts))))
-
-(defun copy-call (state nexts &optional (state-name (gensym)))
+(defun copy-call (state nexts &optional (state-id (gensym)))
   (if (@typep state 'end-state)
       nexts
       (progn
-        (@add-state state-name (@state-type state)
+        (@add-state state-id (@state-type state)
                     :cond (@state-cond state)
                     :nexts (mappend (lambda (s)
                                       (copy-call s nexts (gensym)))
                                     (@state-nexts state)))
-        (list state-name))))
+        (list state-id))))
 
 (def-state-method get-for-nexts ((state simple-state))
   (list state))
@@ -69,73 +46,84 @@
   (list state))
 
 (def-state-method get-for-nexts ((state loop-state))
-  (add-to-new-normalized-rule state)
+  (convert-state state)
   (@state-nexts state))
 
 (def-state-method get-for-nexts ((state ng-loop-state))
-  (add-to-new-normalized-rule state t)
+  (convert-state state t)
   (if-let (end (get-best-end (@state-nexts state)))
     (list end)
     (@state-nexts state)))
 
 ;; TODO: call not fragment rule
 (def-state-method get-for-nexts ((state call-state))
-  (add-to-new-normalized-rule (@state-call-to state))
-  (let ((new-nexts
-          (copy-call (@state-call-to state) (@state-nexts state))))
-    (@add-state state 'eps-state :nexts new-nexts)
-    new-nexts))
+  (@add-state state 'eps-state :nexts (copy-call (@state-call-to state) (@state-nexts state)))
+  (get-for-nexts state))
 
 (defun get-nexts (state)
-  (let ((nexts (@state-nexts state)))
-    (loop for next in nexts
-          appending (get-for-nexts next))))
+  (mappend #'get-for-nexts (@state-nexts state)))
 
-(defun new-nexts-for-conds (old-nexts conds &optional in-loop?)
-  (mapcar (lambda (cond)
-            (let ((nexts (mappend (lambda (n)
-                                    (when (cond-intersection cond (@state-cond n))
-                                      (@state-nexts n)))
-                                  old-nexts))
-                  (id (if-let (id (first (member-if (lambda (s) (cond-equal cond (@state-cond s)))
-                                                    old-nexts)))
-                        id
-                        (let ((id (gensym)))
-                          (@add-state id 'simple-state :cond cond)
-                          id))))
-              (let ((end (get-best-end nexts))) 
-                (if (and end in-loop?)
-                    (setf (@state-nexts id) (list end))
-                    (setf (@state-nexts id) nexts)))
-              id))
-          conds))
+(defun merge-ids (ids)
+  (let (to-remove)
+    (values (loop for (cur-id . rest) on ids
+                  unless (member cur-id to-remove)
+                    collect (let ((ids--same-nexts (remove-if (lambda (id) (set-difference (@state-nexts id) (@state-nexts cur-id))) rest)))
+                              (when ids--same-nexts
+                                (mapc (lambda (id) (push id to-remove)) ids--same-nexts)
+                                (setf (@state-cond cur-id) (reduce #'cond-union ids--same-nexts :key #'@state-cond :initial-value (@state-cond cur-id))))
+                              cur-id))
+            to-remove)))
+
+(defun new-nexts-for-conds (old-nexts conds old-conds &optional in-loop?)
+  (if (every #'cond-equal conds old-conds)
+      old-nexts
+      (mapcar (lambda (cond)
+                (let ((nexts (mappend (lambda (n)
+                                        (when (cond-intersection cond (@state-cond n))
+                                          (@state-nexts n)))
+                                      old-nexts))
+                      (id (if-let (id (first (member-if (lambda (s) (cond-equal cond (@state-cond s)))
+                                                        old-nexts)))
+                            id
+                            (let ((id (gensym)))
+                              (@add-state id 'simple-state :cond cond)
+                              id))))
+                  (let ((end (get-best-end nexts))) 
+                    (if (and end in-loop?)
+                        (setf (@state-nexts id) (list end))
+                        (setf (@state-nexts id) nexts)))
+                  id))
+              conds)))
 
 (defun get-best-end (nexts)
-  (let* ((ends (remove-if-not (lambda (s) (@typep s 'end-state)) nexts))
-         (ends-types (mapcar #'@state-end-type ends))
-         (name (first (member-if (lambda (name) (member name ends-types)) (@extra :order)))))
+  (let* ((ends (remove-if-not (rcurry #'@typep 'end-state) nexts))
+         (name (first (member-if (rcurry #'member ends :key #'@state-end-type) (@extra :order)))))
     (first (member-if (lambda (s) (eq name (@state-end-type s))) ends))))
 
-(def-state-method add-to-new-normalized-rule ((state state) &optional in-loop?)
-  (unless (visit state)
-    (let* ((state-nexts-r (get-nexts state))
-           (end-state (get-best-end state-nexts-r))
-           (state-nexts (remove-if (lambda (s) (@typep s 'end-state)) state-nexts-r))
-           (old-nexts-conds (mapcar #'@state-cond state-nexts))
-           (new-nexts-conds (possible-values old-nexts-conds))
-           (new-nexts (if (tree-equal old-nexts-conds new-nexts-conds)
-                          state-nexts
-                          (new-nexts-for-conds state-nexts new-nexts-conds in-loop?)))
-           (new-nexts-with-end (if end-state
-                                   (cons end-state (if in-loop?
-                                                       (remove-if (rcurry #'@typep 'loop-state) new-nexts)
-                                                       new-nexts))
-                                   new-nexts)))
-      (setf (@state-nexts state) new-nexts-with-end)
-      ;;(@atn->dot) (break)
-      (mapc (rcurry #'add-to-new-normalized-rule in-loop?) new-nexts-with-end))))
+(defun get-nexts-and-end (state)
+  (let ((state-nexts (get-nexts state)))
+    (values (remove-if (rcurry #'@typep 'end-state) state-nexts)
+            (get-best-end state-nexts))))
 
-(def-state-method add-to-new-normalized-rule ((state end-state) &optional in-loop?)
+(defun new-nexts (state-nexts in-loop? end-state)
+  (let* ((old-nexts-conds (mapcar #'@state-cond state-nexts))
+         (new-nexts-conds (possible-values old-nexts-conds))
+         (new-nexts (new-nexts-for-conds state-nexts new-nexts-conds old-nexts-conds in-loop?)))
+    (if end-state
+        (cons end-state (if in-loop?
+                            (remove-if (rcurry #'@typep 'loop-state) new-nexts)
+                            new-nexts))
+        new-nexts)))
+
+(def-state-method convert-state ((state state) &optional in-loop?)
+  (unless (visit state)
+    (multiple-value-bind (state-nexts end-state)
+        (get-nexts-and-end state)
+      (let ((new-nexts (new-nexts state-nexts in-loop? end-state)))
+        (setf (@state-nexts state) new-nexts)
+        (mapc (rcurry #'convert-state in-loop?) new-nexts)))))
+
+(def-state-method convert-state ((state end-state) &optional in-loop?)
   (declare (ignore in-loop?))
   (visit state))
 
@@ -150,9 +138,22 @@
                 (@rem-state s)))
             (@states)))))
 
-(defun transf-atn (atn)
-  (with-atn atn
+(defun merge-states (&optional (start :start))
+  (with-visiting
+    (labels ((%visit (state)
+               (unless (visit state)
+                 (setf (@state-nexts state) (merge-ids (@state-nexts state)))
+                 (mapc #'%visit (@state-nexts state)))))
+      (%visit start)))
+  (remove-unreachable-states))
+
+(defun nfa->dfa (nfa)
+  "Transforms the given nfa into dfa, which is the returning value.
+The original nfa is modified."
+  (with-atn nfa
+    (@atn->dot)
     (with-visiting
-      (add-to-new-normalized-rule :start))
+      (convert-state :start))
     (remove-unreachable-states)
-    atn))
+    (merge-states))
+  nfa)
