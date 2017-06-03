@@ -151,7 +151,6 @@
   "Transforms the given nfa into dfa, which is the returning value.
 The original nfa is modified."
   (with-atn nfa
-    (@atn->dot)
     (with-visiting
       (convert-state :start))
     (remove-unreachable-states)

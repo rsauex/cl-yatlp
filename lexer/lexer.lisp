@@ -56,15 +56,12 @@
 
 (defun grammar->tagbody (rules fn-name grammar)
   (with-atn (nfa->dfa (grammar->nfa rules))
-    (atn:@atn->dot)
+    ;;(atn:@atn->dot)
     `(tagbody
         (go :start)
         ,@(mappend (lambda (s)
                      `(,s ,(state->action s fn-name grammar)))
                    (@states)))))
-
-
-
 
 
 
@@ -123,7 +120,7 @@
 (defmacro deflexer (grammar &body rules)
   (let ((lexer-sym (gensym)))
     `(progn
-       ;;(defpackage ,grammar)
+       (defpackage ,grammar)
        (defun ,lexer-sym (stream)
          (let ((*stream* stream)
                (*cur-res* nil))
