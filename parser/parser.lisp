@@ -99,7 +99,7 @@
 
 (def-state-method state->action ((state mimic-state) results)
   (if (null (rest (@state-nexts state))) 
-      `(,(@state-mimic-rule state) stream)
+      `(,(fn-name-for-rule (@state-mimic-rule state)) stream)
       (let ((result-sym (gensym)))
         `(multiple-value-bind (,result-sym stream)
              (,(fn-name-for-rule (@state-mimic-rule state)) stream)
@@ -174,7 +174,7 @@
     (reverse body)))
 
 (defmacro defparser (grammar &body rules)
-  (let ((*grammar* grammar))
+  (let ((*grammar* (make-keyword grammar)))
     (with-atn (transform (grammar->atn rules)) 
       (let ((parser-sym (gensym)))
         `(progn
@@ -194,7 +194,7 @@
                    (parser::parser-error stream-rest :cons start-rule))
                  res)))
 
-           (defmethod parser ((grammar (eql ',grammar)) stream &optional (start-rule ',(@extra :start-rule)))
+           (defmethod parser ((grammar (eql ,(make-keyword grammar))) stream &optional (start-rule ',(@extra :start-rule)))
              (,parser-sym stream start-rule)))))))
 
 
@@ -293,4 +293,4 @@
         (%print term)))))
 
 (defun parse-str (grammar str rule)
-  (parser grammar (lexer grammar (make-string-input-stream str)) rule))
+  (parser grammar (lexer (make-string-input-stream str) grammar) rule))
