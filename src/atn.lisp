@@ -61,7 +61,6 @@
       `(progn
          (defun ,et-accessor (rule)
            (,raw-accessor (,element-getter rule)))
-         (export ',et-accessor)
          (define-setf-expander ,et-accessor (x &environment env)
            (multiple-value-bind (dummies vals newval setter getter)
                (get-setf-expansion x env)
@@ -71,7 +70,8 @@
                        vals
                        `(,store)
                        `(progn (setf (,',raw-accessor (,',element-getter ,getter)) ,store) ,store)
-                       `(,',et-accessor ,getter)))))))))
+                       `(,',et-accessor ,getter)))))
+         (export ',et-accessor)))))
 
 (defmacro defrule (name direct-superclasses direct-slots &rest options)
   (let ((accessors (mapcar (lambda (slot)

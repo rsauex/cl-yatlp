@@ -72,7 +72,7 @@
                       (error "Mimic rule must be the only one in chain")
                       `(t (values ,(first results) stream)))
                   `(t ,(state->action end results)))
-              `(t (parser::parser-error stream :alt ',(mappend #'first-for-state
+              `(t (cl-yatlp/parser::parser-error stream :alt ',(mappend #'first-for-state
                                                                states))))))))
 
 (def-state-generic state->action (state results))
@@ -89,14 +89,14 @@
          (let ((,result-sym (second (head stream)))
                (stream (tail stream)))
            ,(states-list->action (@state-nexts state) (cons result-sym results)))
-         (parser::parser-error stream :lex ',(@state-lex state)))))
+         (cl-yatlp/parser::parser-error stream :lex ',(@state-lex state)))))
 
 (def-state-method state->action ((state str-state) results)
   (let ((str `(once (second ,(head-parse-str (@state-str state))))))
     `(if (eq ,str (second (head stream)))
          (let ((stream (tail stream)))
            ,(states-list->action (@state-nexts state) results))
-         (parser::parser-error stream :str ',(@state-str state)))))
+         (cl-yatlp/parser::parser-error stream :str ',(@state-str state)))))
 
 (def-state-method state->action ((state mimic-state) results)
   (if (null (rest (@state-nexts state))) 
@@ -159,7 +159,7 @@
            (multiple-value-bind (,result stream)
                (,helper-fn stream)
              ,(mk-term* rule result)))
-         (parser::parser-error stream :alt ',body-first))))
+         (cl-yatlp/parser::parser-error stream :alt ',body-first))))
 
 (defun rules->defs ()
   (let (body)
@@ -192,7 +192,7 @@
                                  `(,r (,(fn-name-for-rule r) stream)))
                         (@rules)))
                  (unless (eq :eof (first (head stream-rest)))
-                   (parser::parser-error stream-rest :cons start-rule))
+                   (cl-yatlp/parser::parser-error stream-rest :cons start-rule))
                  res)))
 
            (defmethod parser ((grammar (eql ,(make-keyword grammar))) stream &optional (start-rule ',(@extra :start-rule)))
