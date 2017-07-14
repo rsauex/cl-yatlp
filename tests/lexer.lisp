@@ -1,5 +1,5 @@
 (defpackage #:lexer-test
-  (:use #:cl #:lazy-list #:lexer #:lisp-unit2))
+  (:use #:cl #:lazy-list #:cl-yatlp/lexer #:lisp-unit2))
 
 (in-package #:lexer-test)
 

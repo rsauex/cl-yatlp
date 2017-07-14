@@ -1,5 +1,6 @@
 language: lisp
 sudo: required
+dist: trusty
 
 env:
   matrix:
@@ -9,8 +10,17 @@ install:
   - curl https://raw.githubusercontent.com/luismbo/cl-travis/master/install.sh | sh;
   - cl -l alexandria -l eager-future2 -l lisp-unit2 -e '(ql-util:without-prompting (ql:add-to-init-file))'
 
-script:
-  - cl -e '(ql:quickload :cl-yatlp)
-           (ql:quickload :cl-yatlp-test)
-           (unless (lisp-unit2:failed (lisp-unit2:run-tests :package :lexer-tests))
-             (uiop:quit 1))'
+jobs:
+  include:
+    - stage: Build
+      script: cl -e '(ql:quickload :cl-yatlp)'
+    - stage: Test
+      script: cl -e '(ql:quickload :cl-yatlp-test)
+                     (unless (lisp-unit2:failed (lisp-unit2:run-tests :package :lexer-tests))
+                       (uiop:quit 1))'
+
+# script:
+#   - cl -e '(ql:quickload :cl-yatlp)
+#            (ql:quickload :cl-yatlp-test)
+#            (unless (lisp-unit2:failed (lisp-unit2:run-tests :package :lexer-tests))
+#              (uiop:quit 1))'
