@@ -16,7 +16,7 @@ jobs:
       script: cl -e '(ql:quickload :cl-yatlp)'
     - stage: Test
       script: cl -e '(ql:quickload :cl-yatlp-test)
-                     (unless (lisp-unit2:failed (lisp-unit2:run-tests :package :lexer-tests))
+                     (when (lisp-unit2:failed (lisp-unit2:with-summary () (lisp-unit2:run-tests :package :lexer-tests)))
                        (uiop:quit 1))'
 
 # script:
