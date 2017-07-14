@@ -1,8 +1,9 @@
-(defpackage #:parser
-  (:use #:cl #:alexandria #:cond #:atn #:parser-states #:parser-creation #:lazy-list #:lexer #:parser-transformation)
+(defpackage #:cl-yatlp/parser
+  (:use #:cl #:alexandria #:cl-yatlp/cond #:atn #:cl-yatlp/parser-states #:cl-yatlp/parser-creation #:lazy-list #:cl-yatlp/lexer #:cl-yatlp/parser-transformation)
   (:export #:defparser
            #:parser))
-(in-package #:parser)
+
+(in-package #:cl-yatlp/parser)
 
 (defvar *grammar*)
 

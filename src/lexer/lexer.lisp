@@ -1,10 +1,10 @@
-(defpackage #:lexer
-  (:use #:cl #:alexandria #:lazy-list #:cond #:atn #:lexer-states 
-        #:lexer-creation #:lexer-transformation)
+(defpackage #:cl-yatlp/lexer
+  (:use #:cl #:alexandria #:lazy-list #:cl-yatlp/cond #:atn #:cl-yatlp/lexer-states 
+        #:cl-yatlp/lexer-creation #:cl-yatlp/lexer-transformation)
   (:export #:deflexer
            #:lexer))
 
-(in-package #:lexer)
+(in-package #:cl-yatlp/lexer)
 
 (def-state-generic state->action (state fn-name grammar))
 
@@ -115,7 +115,7 @@
   (concatenate 'string (reverse *cur-res*)))
 
 (defun register-lexer (grammar fn)
-  (setf (gethash grammar common::*lexer-grammars*) fn))
+  (setf (gethash grammar cl-yatlp/common::*lexer-grammars*) fn))
 
 (defmacro deflexer (grammar &body rules)
   (let ((lexer-sym (gensym)))
@@ -127,10 +127,10 @@
            (when (null *cur*)
              (return-from ,lexer-sym (values :eof nil *line* *pos*)))
            ,(grammar->tagbody rules lexer-sym grammar)))
-       (lexer::register-lexer ,(intern (symbol-name grammar) :keyword) #',lexer-sym))))
+       (cl-yatlp/lexer::register-lexer ,(intern (symbol-name grammar) :keyword) #',lexer-sym))))
 
 (defun lexer (stream grammar)
-  (let* ((lexer-fn (gethash grammar common::*lexer-grammars*))
+  (let* ((lexer-fn (gethash grammar cl-yatlp/common::*lexer-grammars*))
          (*stream* stream)
          (*cur* nil)
          (*line* 1)

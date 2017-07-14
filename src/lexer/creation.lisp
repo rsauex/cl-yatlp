@@ -1,8 +1,8 @@
-(defpackage #:lexer-creation
-  (:use #:cl #:alexandria #:cond #:atn #:lexer-states)
+(defpackage #:cl-yatlp/lexer-creation
+  (:use #:cl #:alexandria #:cl-yatlp/cond #:atn #:cl-yatlp/lexer-states)
   (:export #:grammar->nfa))
 
-(in-package #:lexer-creation)
+(in-package #:cl-yatlp/lexer-creation)
 
 (defgeneric state-for (rule-type format state-name next-state))
 

@@ -1,5 +1,5 @@
-(defpackage #:parser-transformation
-  (:use #:cl #:alexandria #:atn #:parser-states)
+(defpackage #:cl-yatlp/parser-transformation
+  (:use #:cl #:alexandria #:atn #:cl-yatlp/parser-states)
   (:export #:first-for-rule
            #:first-for-state
            #:follow-for-rule
@@ -7,7 +7,7 @@
            #:transform
            #:get-rule-for-state))
 
-(in-package #:parser-transformation)
+(in-package #:cl-yatlp/parser-transformation)
 
 (def-state-generic first-for-state (state))
 
@@ -46,8 +46,8 @@
 
 (def-state-generic follow-for-state (state))
 
-;; (def-state-method follow-for-state ((state rule-state))
-;;   (follow-for-rule (@state-rule state)))
+(def-state-method follow-for-state ((state rule-state))
+  (follow-for-rule (@state-rule state)))
 
 ;; (def-state-method follow-for-state ((state mimic-state))
 ;;   (follow-for-rule (@state-mimic-rule state)))

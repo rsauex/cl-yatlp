@@ -1,4 +1,4 @@
-(defpackage #:cond
+(defpackage #:cl-yatlp/cond
   (:use #:cl #:alexandria)
   (:export #:cond-union
            #:cond-difference
@@ -7,7 +7,7 @@
            #:cond-optimize
            #:cond->test))
 
-(in-package #:cond)
+(in-package #:cl-yatlp/cond)
 
 (defmacro defop (name params &body body)
   (let ((type-params (loop for param in params

@@ -1,4 +1,4 @@
-(defpackage #:parser-states
+(defpackage #:cl-yatlp/parser-states
   (:use #:cl #:atn)
   (:export #:simple-state
            #:rule-state
@@ -14,7 +14,7 @@
            #:s-loop-rule
            #:p-loop-rule))
 
-(in-package #:parser-states)
+(in-package #:cl-yatlp/parser-states)
 
 (defstate simple-state (state) ())
 

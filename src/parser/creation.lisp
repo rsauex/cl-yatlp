@@ -1,12 +1,12 @@
-(defpackage #:parser-creation
-  (:use #:cl #:alexandria #:atn #:parser-states)
+(defpackage #:cl-yatlp/parser-creation
+  (:use #:cl #:alexandria #:atn #:cl-yatlp/parser-states)
   (:export #:grammar->atn
 
            #:->
            #:*
            #:+))
 
-(in-package #:parser-creation)
+(in-package #:cl-yatlp/parser-creation)
 
 (defvar *format*)
 
