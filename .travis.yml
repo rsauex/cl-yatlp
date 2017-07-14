@@ -7,11 +7,10 @@ env:
 
 install:
   - curl https://raw.githubusercontent.com/luismbo/cl-travis/master/install.sh | sh;
-  - cl -l alexandria -l eager-future2 -e '(ql-util:without-prompting (ql:add-to-init-file))'
-  - git clone git://github.com/rsauex/small-tests.git ~/lisp/small-tests
+  - cl -l alexandria -l eager-future2 -l lisp-unit2 -e '(ql-util:without-prompting (ql:add-to-init-file))'
 
 script:
   - cl -e '(ql:quickload :cl-yatlp)
            (ql:quickload :cl-yatlp-test)
-           (unless (small-tests:run-tests)
+           (unless (lisp-unit2:failed (lisp-unit2:run-tests :package :lexer-tests))
              (uiop:quit 1))'
