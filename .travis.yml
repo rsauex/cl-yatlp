@@ -1,5 +1,5 @@
 language: lisp
-#sudo: required
+sudo: required
 dist: trusty
 
 env:
@@ -18,9 +18,3 @@ jobs:
       script: cl -e '(ql:quickload :cl-yatlp-test)
                      (when (lisp-unit2:failed (lisp-unit2:with-summary () (lisp-unit2:run-tests :package :lexer-tests)))
                        (uiop:quit 1))'
-
-# script:
-#   - cl -e '(ql:quickload :cl-yatlp)
-#            (ql:quickload :cl-yatlp-test)
-#            (unless (lisp-unit2:failed (lisp-unit2:run-tests :package :lexer-tests))
-#              (uiop:quit 1))'
