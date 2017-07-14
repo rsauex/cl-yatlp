@@ -1,6 +1,10 @@
 (defpackage #:parser-creation
   (:use #:cl #:alexandria #:atn #:parser-states)
-  (:export #:grammar->atn))
+  (:export #:grammar->atn
+
+           #:->
+           #:*
+           #:+))
 
 (in-package #:parser-creation)
 
@@ -83,10 +87,10 @@
                                 (@add-state end-sym 'p-end-state :type rule-name
                                                                :format (reverse *format*))
                                 alter))
-                            (rest format))
+                            format)
              :options options))
 
-(defmethod rule-for ((rule-type (eql ':*)) format rule-name options)
+(defmethod rule-for ((rule-type (eql '*)) format rule-name options)
   (destructuring-bind (delim &rest body)
       (rest format)
     (let ((*format* (list delim :*))
@@ -98,7 +102,7 @@
       (desr-rule->state body body-sym end-sym)
       (@add-state end-sym 'p-end-state :type rule-name :format (reverse *format*)))))
 
-(defmethod rule-for ((rule-type (eql ':+)) format rule-name options)
+(defmethod rule-for ((rule-type (eql '+)) format rule-name options)
   (destructuring-bind (delim &rest body)
       (rest format)
     (let ((*format* (list delim :+))
@@ -110,25 +114,48 @@
       (desr-rule->state body body-sym end-sym)
       (@add-state end-sym 'p-end-state :type rule-name :format (reverse *format*)))))
 
+(defun parse-rule (rule)
+  "Parses rule into name alternatives and options.
+Each rule has the following format (<name> {-> ...} [:options ...]"
+  (let ((name (first rule)))
+    (labels ((%till (list test)
+               (loop for x on list
+                     unless (funcall test (first x))
+                       collect (first x) into res
+                     else
+                       do (return (values res x))
+                     finally (return res)))
+             (%parse-body (body &optional acc)
+               (if body
+                   (ecase (first body)
+                     (->
+                      (multiple-value-bind (alternative rest)
+                          (%till (rest body) (lambda (x) (or (eq :options x) (eq '-> x))))
+                        (unless alternative
+                          (error "Empty alternative is not allowed"))
+                        (%parse-body rest (cons alternative acc))))
+                     (:options
+                      (values (reverse acc) (rest body))))
+                   (reverse acc))))
+      (multiple-value-bind (alternatives options)
+          (%parse-body (rest rule))
+        (values name alternatives options)))))
+
 (defun rule->state (rule)
-  (destructuring-bind (name format &rest options)
-      rule
+  (multiple-value-bind (name alternatives options)
+      (parse-rule rule)
     (cond
-      ((null format)
-       (error "Wrong format"))
-      ((and (listp format)
-            (member (first format) '(:or :* :+)))
-       (rule-for (first format) format name options))
+      ((null alternatives)
+       (error "Rule '~A' has no alternatives" name))
+      ;; 'plus' and 'star' rules
+      ((member (first (first alternatives)) '(* +))
+       (rule-for (first (first alternatives)) (print (first alternatives)) name options))
+      ;; ordinary rule      
       (t
-       (let (*format*
-             (state-name (gensym))
-             (end-name (gensym)))
-         (@add-rule name 'simple-rule :state (list state-name)
-                                      :options options)
-         (desr-rule->state format state-name end-name)
-         (@add-state end-name 'p-end-state :type name :format (reverse *format*)))))))
+       (rule-for :or alternatives name options)))))
 
 (defun grammar->atn (grammar)
+  "Transformate the given grammar into ATN"
   (let ((atn (make-atn))) 
     (with-atn atn 
       (dolist (rule grammar)

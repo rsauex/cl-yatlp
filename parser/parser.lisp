@@ -7,7 +7,7 @@
 (defvar *grammar*)
 
 (defun head-parse-str (str)
-  `(head (lexer ',*grammar* (make-string-input-stream ,str))))
+  `(head (lexer (make-string-input-stream ,str) ',*grammar*)))
 
 (defun fn-name-for-rule (rule)
   (symbolicate "%%" rule))
