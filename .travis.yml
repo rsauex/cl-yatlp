@@ -20,10 +20,9 @@ cache:
     - $HOME/.roswell
     - $HOME/.config/common-lisp
 
-script: ros -e '(coveralls:with-coveralls (:exclude (list "t"))
+script: ros -e '(ql:quickload (list :cl-coveralls :split-sequence) :silent t)
+                (coveralls:with-coveralls (:exclude (list "t"))
                   (ql:quickload :cl-yatlp-test)
-                  (when (uiop:getenv "COVERALLS")
-                    (ql:quickload (list :cl-coveralls :split-sequence) :silent t))
                   (when (lisp-unit2:failed (lisp-unit2:with-summary ()
                                              (lisp-unit2:run-tests :package :lexer-tests)))
                     (uiop:quit 1)))'
