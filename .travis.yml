@@ -1,17 +1,29 @@
 language: common-lisp
 sudo: required
-dist: trusty
 
 env:
+  global:
+    - PATH=~/.roswell/bin:$PATH
+    - ROSWELL_BRANCH=release
+    - ROSWELL_INSTALL_DIR=$HOME/.roswell
+    - COVERAGE_EXCLUDE=tests
   matrix:
-    - LISP=sbcl COVERALLS=true
+    - LISP=sbcl-bin COVERALLS=true
 
 install:
-  - curl https://raw.githubusercontent.com/luismbo/cl-travis/master/install.sh | sh;
-  - git clone https://github.com/fukamachi/cl-coveralls ~/lisp/cl-coveralls
-  - cl -l alexandria -l lisp-unit2 -e '(ql-util:without-prompting (ql:add-to-init-file))'
+  - curl -L https://raw.githubusercontent.com/snmsts/roswell/$ROSWELL_BRANCH/scripts/install-for-ci.sh | sh
+  - ros asdf install
+  - ros -e '(ql:update-all-dists :prompt nil)'
 
-script: cl -e '(ql:quickload :cl-yatlp-test)
-               (when (lisp-unit2:failed (lisp-unit2:with-summary ()
-                                          (lisp-unit2:run-tests :package :lexer-tests)))
-                 (uiop:quit 1))'
+cache:
+  directories:
+    - $HOME/.roswell
+    - $HOME/.config/common-lisp
+
+script: ros -e '(coveralls:with-coveralls (:exclude (list "t"))
+                  (ql:quickload :cl-yatlp-test)
+                  (when (uiop:getenv "COVERALLS")
+                    (ql:quickload (list :cl-coveralls :split-sequence) :silent t))
+                  (when (lisp-unit2:failed (lisp-unit2:with-summary ()
+                                             (lisp-unit2:run-tests :package :lexer-tests)))
+                    (uiop:quit 1)))'
