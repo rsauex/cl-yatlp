@@ -6,8 +6,13 @@
   :components ((:module src
                 :serial t
                 :components ((:file "lazy-list")
-                             (:file "atn")
                              (:file "common")
+
+                             (:module atn
+                              :serial t
+                              :components ((:file "package")
+                                           (:file "states")
+                                           (:file "atn")))
 
                              (:module lexer
                               :serial t

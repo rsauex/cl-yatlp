@@ -1,20 +1,18 @@
-language: lisp
+language: common-lisp
 sudo: required
 dist: trusty
 
 env:
   matrix:
-    - LISP=sbcl
+    - LISP=sbcl COVERALLS=true
 
 install:
   - curl https://raw.githubusercontent.com/luismbo/cl-travis/master/install.sh | sh;
-  - cl -l alexandria -l eager-future2 -l lisp-unit2 -e '(ql-util:without-prompting (ql:add-to-init-file))'
+  - git clone https://github.com/fukamachi/cl-coveralls ~/lisp/cl-coveralls
+  - cl -l alexandria -l lisp-unit2 -l cl-coveralls -e '(ql-util:without-prompting (ql:add-to-init-file))'
 
-jobs:
-  include:
-    - stage: Build
-      script: cl -e '(ql:quickload :cl-yatlp)'
-    - stage: Test
-      script: cl -e '(ql:quickload :cl-yatlp-test)
-                     (when (lisp-unit2:failed (lisp-unit2:with-summary () (lisp-unit2:run-tests :package :lexer-tests)))
-                       (uiop:quit 1))'
+script: cl -e '(coveralls:with-coveralls (:exclude (list "test")
+                 (ql:quickload :cl-yatlp-test)
+                 (when (lisp-unit2:failed (lisp-unit2:with-summary ()
+                                            (lisp-unit2:run-tests :package :lexer-tests)))
+                   (uiop:quit 1)))'

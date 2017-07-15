@@ -1,5 +1,5 @@
 (defpackage #:cl-yatlp/parser
-  (:use #:cl #:alexandria #:cl-yatlp/cond #:atn #:cl-yatlp/parser-states #:cl-yatlp/parser-creation #:lazy-list #:cl-yatlp/lexer #:cl-yatlp/parser-transformation)
+  (:use #:cl #:alexandria #:cl-yatlp/cond #:cl-yatlp/atn #:cl-yatlp/parser-states #:cl-yatlp/parser-creation #:lazy-list #:cl-yatlp/lexer #:cl-yatlp/parser-transformation)
   (:export #:defparser
            #:parser))
 

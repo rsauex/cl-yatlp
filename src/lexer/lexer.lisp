@@ -1,5 +1,5 @@
 (defpackage #:cl-yatlp/lexer
-  (:use #:cl #:alexandria #:lazy-list #:cl-yatlp/cond #:atn #:cl-yatlp/lexer-states 
+  (:use #:cl #:alexandria #:lazy-list #:cl-yatlp/cond #:cl-yatlp/atn #:cl-yatlp/lexer-states 
         #:cl-yatlp/lexer-creation #:cl-yatlp/lexer-transformation)
   (:export #:deflexer
            #:lexer))

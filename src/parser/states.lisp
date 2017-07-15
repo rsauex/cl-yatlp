@@ -1,5 +1,5 @@
 (defpackage #:cl-yatlp/parser-states
-  (:use #:cl #:atn)
+  (:use #:cl #:cl-yatlp/atn)
   (:export #:simple-state
            #:rule-state
            #:lex-state

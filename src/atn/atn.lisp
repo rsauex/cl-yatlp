@@ -1,50 +1,4 @@
-(defpackage #:atn
-  (:use #:cl #:alexandria)
-  (:export #:make-atn
-
-           #:defstate
-           #:defrule
-
-           #:rule
-           #:state
-           #:end-state
-           #:call-state
-
-           #:with-atn
-
-           #:@extra
-
-           #:@get-state
-           #:@add-state
-           #:@rem-state
-           #:@states
-           #:@state-type
-           #:@state-call-to
-
-           #:@get-rule
-           #:@add-rule
-           #:@rem-rule
-           #:@rules
-
-           #:@typep
-           
-           #:@state-nexts-without-end
-           #:delayed-rule
-
-           #:with-visiting
-           #:visit
-
-           #:@traverse-atn
-
-           #:def-state-generic
-           #:def-state-method
-           #:def-rule-generic
-           #:def-rule-method
-
-           #:atn->dot
-           #:@atn->dot))
-
-(in-package #:atn)
+(in-package #:cl-yatlp/atn)
 
 ;;; Structure
 
@@ -53,112 +7,23 @@
   (rules (make-hash-table))
   (extra (make-hash-table)))
 
-;;; Rule
+;;; Delayed id
 
-(eval-when (:compile-toplevel :load-toplevel)
-  (defun make-et-accessor (raw-accessor element-getter)
-    (let ((et-accessor (symbolicate "@" raw-accessor)))
-      `(progn
-         (defun ,et-accessor (rule)
-           (,raw-accessor (,element-getter rule)))
-         (define-setf-expander ,et-accessor (x &environment env)
-           (multiple-value-bind (dummies vals newval setter getter)
-               (get-setf-expansion x env)
-             (declare (ignorable newval setter))
-             (let ((store (gensym)))
-               (values dummies
-                       vals
-                       `(,store)
-                       `(progn (setf (,',raw-accessor (,',element-getter ,getter)) ,store) ,store)
-                       `(,',et-accessor ,getter)))))
-         (export ',et-accessor)))))
+(defstruct delayed-id
+  (computed nil)
+  (value nil))
 
-(defmacro defrule (name direct-superclasses direct-slots &rest options)
-  (let ((accessors (mapcar (lambda (slot)
-                             (getf (rest slot) :accessor))
-                           direct-slots)))
-    `(progn
-       (defclass ,name ,direct-superclasses
-         ,direct-slots
-         ,@options)
-       ,@(mapcar (rcurry #'make-et-accessor '@get-rule) accessors))))
-
-(defrule rule ()
-  ((state :accessor rule-state
-          :initarg :state)
-   (options :accessor rule-options
-            :initarg :options)))
-
-;;; Possible states
-
-(defmacro defstate (name direct-superclasses direct-slots &rest options)
-  (let ((accessors (mapcar (lambda (slot)
-                             (getf (rest slot) :accessor))
-                           direct-slots)))
-    `(progn
-       (defclass ,name ,direct-superclasses
-         ,direct-slots
-         ,@options)
-       ,@(mapcar (rcurry #'make-et-accessor '@get-state) accessors))))
-
-(defstate state ()
-  ((cond :accessor state-cond
-         :initarg :cond
-         :initform t)
-   (nexts :accessor state-nexts
-          :initarg :nexts
-          :type list
-          :initform nil)))
-
-(defstate call-state (state)
-  ((to :accessor call-to
-       :initarg :call-to
-       :type state)))
-
-(defstate end-state (state)
-  ((type :accessor state-end-type
-         :initarg :type)
-   (options :accessor state-end-options
-           :initarg :options)))
+(defun force-id (id)
+  (if (delayed-id-p id)
+      (if (delayed-id-computed id)
+          (print (delayed-id-value id))
+          (progn
+            (setf (delayed-id-computed id) t)
+            (setf (delayed-id-value id)
+                  (print (funcall (delayed-id-value id))))))
+      id))
 
 ;;; Tools
-
-(defun @state-nexts-without-end (state)
-  (remove-if (rcurry #'@typep 'end-state) (@state-nexts state)))
-
-(defun delayed-rule (name)
-  (lambda () (rule-state (@get-rule name))))
-
-(defun @state-call-to (state)
-  (or (let ((val (call-to (@get-state state))))
-        (if (functionp val)
-            (setf (call-to (@get-state state)) (funcall val))
-            val))
-      (error "call-to cannot be NIL")))
-
-(define-setf-expander @state-call-to (x &environment env)
-  (multiple-value-bind (dummies vals newval setter getter)
-      (get-setf-expansion x env)
-    (declare (ignorable newval setter))
-    (let ((store (gensym)))
-      (values dummies
-              vals
-              `(,store)
-              `(progn (setf (call-to (@get-state ,getter)) ,store) ,store)
-              `(@state-nexts ,getter)))))
-
-
-(defun apply-delta (atn delta)
-  (maphash (lambda (id state)
-             (if (eq :rem state)
-                 (remhash id (atn-table atn))
-                 (setf (gethash id (atn-table atn)) state)))
-           (atn-table delta))
-  (maphash (lambda (id rule)
-             (if (eq :rem rule)
-                 (remhash id (atn-rules atn))
-                 (setf (gethash id (atn-rules atn)) rule)))
-           (atn-rules delta)))
 
 (defvar *atn* nil
   "Current ATN")
@@ -166,28 +31,35 @@
 (defvar *delta* nil
   "Changes in current atn")
 
+(defun apply-delta (atn delta)
+  (labels ((%process-table (getter)
+             (maphash (lambda (id state)
+                        (if (eq :rem state)
+                            (remhash id (atn-table atn))
+                            (setf (gethash id (funcall getter atn)) state)))
+                      (funcall getter delta))))
+    (%process-table #'atn-table)
+    (%process-table #'atn-rules)))
+
 (defmacro with-atn (atn &body body)
   "Binds *STATE-TABLE* to STATE-TABLE"
-  `(let ((atn::*atn* ,atn)
-         (atn::*delta* (make-atn)))
+  `(let ((cl-yatlp/atn::*atn* ,atn)
+         (cl-yatlp/atn::*delta* (make-atn)))
      (multiple-value-prog1
          (progn ,@body)
-       (apply-delta atn::*atn* atn::*delta*))))
+       (apply-delta cl-yatlp/atn::*atn* cl-yatlp/atn::*delta*))))
 
 (defun @extra (name)
   (gethash name (atn-extra *atn*)))
 
-(define-setf-expander @extra (x &environment env)
-  (multiple-value-bind (dummies vals newval setter getter)
-      (get-setf-expansion x env)
-    (declare (ignorable newval setter))
-    (let ((store (gensym)))
-      (values dummies
-              vals
-              `(,store)
-              `(progn (setf (gethash ,getter (atn-extra atn::*atn*)) ,store) ,store)
-              `(@state-nexts ,getter)))))
+(defsetf @extra (store) (x)
+  `(setf (gethash ,store (atn-extra cl-yatlp/atn::*atn*)) ,x))
 
+(defun @state-nexts-without-end (state)
+  (remove-if (rcurry #'@typep 'end-state) (@state-nexts state)))
+
+(defun delayed-rule (name)
+  (make-delayed-id :value (lambda () (rule-state (@get-rule name)))))
 
 (defun add-rule (atn rule type &rest args)
   "Add rule into atn"
@@ -199,13 +71,13 @@
 
 (defun get-rule (atn rule)
   "Get state for rule with name RULE."
-  (if-let (res (gethash rule (atn-rules atn)))
+  (if-let (res (gethash (force-id rule) (atn-rules atn)))
     res
     (error "No such rule: ~S" rule)))
 
 (defun @get-rule (rule)
   "Get state for rule with name RULE."
-  (or (gethash rule (atn-table *delta*))
+  (or (gethash (force-id rule) (atn-table *delta*))
       (get-rule *atn* rule)))
 
 (defun add-state (atn state type &rest args)
@@ -221,15 +93,15 @@ ARGS are passed to the constructor of class TYPE"
 
 (defun get-state (atn state)
   "Get state from ATN. Error if STATE is not in ATN"
-  (if-let (res (gethash state (atn-table atn)))
+  (if-let (res (gethash (force-id state) (atn-table atn)))
     res
     (error "No such state: ~S" state)))
 
 (defun @get-state (state)
   "Get state from current atn.
 Error if STATE is not in current atn"
-  (or (gethash state (atn-table *delta*))
-      (get-state *atn* state)))
+  (or (gethash (force-id state) (atn-table *delta*))
+      (get-state *atn* (force-id state))))
 
 (defun @state-type (state)
   "Returns type of the given state"
@@ -277,7 +149,7 @@ nil otherwise."
 
 (defmacro with-visiting (&body body)
   "Allows using of visit fn"
-  `(let (atn::*visited*)
+  `(let (cl-yatlp/atn::*visited*)
      ,@body))
 
 (defun visit (state)

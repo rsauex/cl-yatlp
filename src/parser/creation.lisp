@@ -1,5 +1,5 @@
 (defpackage #:cl-yatlp/parser-creation
-  (:use #:cl #:alexandria #:atn #:cl-yatlp/parser-states)
+  (:use #:cl #:alexandria #:cl-yatlp/atn #:cl-yatlp/parser-states)
   (:export #:grammar->atn
 
            #:->

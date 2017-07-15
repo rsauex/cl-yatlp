@@ -1,5 +1,5 @@
 (defpackage #:cl-yatlp/lexer-creation
-  (:use #:cl #:alexandria #:cl-yatlp/cond #:atn #:cl-yatlp/lexer-states)
+  (:use #:cl #:alexandria #:cl-yatlp/cond #:cl-yatlp/atn #:cl-yatlp/lexer-states)
   (:export #:grammar->nfa))
 
 (in-package #:cl-yatlp/lexer-creation)

@@ -1,5 +1,5 @@
 (defpackage #:cl-yatlp/lexer-states
-  (:use #:cl #:atn)
+  (:use #:cl #:cl-yatlp/atn)
   (:export #:simple-state
            #:loop-state
            #:ng-loop-state
