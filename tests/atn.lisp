@@ -146,6 +146,7 @@
       (cl-yatlp/atn::add-rule atn 'a 'rule :state 'b :options '(c d))
       (assert-true (cl-yatlp/atn::get-rule atn 'a))
       (with-atn atn
+        (assert-true (@get-rule 'a))
         (@rem-rule 'a)
         (assert-true (cl-yatlp/atn::get-rule atn 'a))
         (assert-error 'error (@get-rule 'a)))
