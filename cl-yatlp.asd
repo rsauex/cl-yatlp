@@ -27,6 +27,9 @@
                               :components ((:file "states")
                                            (:file "creation")
                                            (:file "transformation")
+                                           (:module transformations
+                                            :serial t
+                                            :components ((:file "mimic")))
                                            (:file "parser")))
 
                              (:file "cl-yatlp")))))
