@@ -93,10 +93,9 @@ The rule which is mentioned in mimic-form must have an option ```:mimic <rule-na
 e.g. for the following grammar
 ```lisp
 (defparser some-grammar
-  (rule1 (:or "abc"
-              (:^ rule2)))
-  (rule2 ("123")
-         :mimic rule1))
+  (rule1 -> "abc"
+         -> :^ rule2))
+  (rule2 -> "123"))
 ```
 the result of parsing ```"123"``` will be ```(rule2)``` unlike ```(rule1 (rule2))``` which will be the result
 of the similar grammar using ordinary rule instead of mimic one.
