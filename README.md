@@ -1,20 +1,15 @@
 # cl-yatlp [![Build Status](https://travis-ci.org/rsauex/cl-yatlp.svg?branch=master)](https://travis-ci.org/rsauex/cl-yatlp) [![Coverage Status](https://coveralls.io/repos/github/rsauex/cl-yatlp/badge.svg?branch=master)](https://coveralls.io/github/rsauex/cl-yatlp?branch=master)
 Yet another tool for language processing
 
-Using this tool it is possible to build lexers and parsers (only LL(1) for now) in
-an easy way.
+This tool is intended for easy lexer and parser building, code transformations and anlysis.
 
 Current features:
-- basic lexer generator
-- basic parser generator
-
-Partly implemented:
-- pretty printing AST into readable code
+- lexer generator
+- LL(1) parser generator
 
 Future:
 - tools for code matching and transformation (in AST form)
 - extend parser to LL(*)
-- normal error handling
 
 ## Lexer
 The function for defining lexers is
@@ -24,7 +19,7 @@ The function for defining lexers is
   ...)
 ```
 
-Rules are defined in a regex-like s-expressions:
+Rules are defined using regex-like s-expressions based syntax:
 - ```(<elements>...)``` - sequence, e.g. ```(#\a #\b #\c)```
 - ```(:+ <elements>...)```
 - ```(:+? <elements>...)```
@@ -36,12 +31,13 @@ Rules are defined in a regex-like s-expressions:
 - ```:any``` - like ```.``` in regex.
 
 Options:
-- ```:skip <bool>``` - if ```<bool>``` is ```t``` then resulting tokens will be omitted
-- ```:fragment``` - the corresponding rule is not a independent rule, can be used in other rules by their names
+- ```:skip <bool>``` - if ```<bool>``` is ```t``` the result of the rule will be omitted
+- ```:fragment``` - the corresponding rule is not an independent rule. Such rules are intended
+to be referenced by other rules.
 
 Main entry point into lexer is
 ```lisp
-(lexer <grammar-symbol> <stream>)
+(lexer <stream> <grammar-keyword>)
 ```
 
 Result is a lazy-list where each element is token of the following form:
@@ -67,35 +63,36 @@ Lexer for identifiers:
 The function for defining parsers is
 ```lisp
 (defparser <grammar-name>
-  (<rule-name> <rule-form> <options>...)
+  (<rule-name> <alternative>... [:options <options>...])
   ...)
 ```
 
-Each rule-form can be one of the following:
-- ```(<elements>...)``` - (sequence-form) each element can be either rule-name or string.
-- ```(:or <elements>...)``` - (or-form) each element can be either rule-name, string, sequence-form, ```:eps``` (eps-form) or ```(:^ rule)``` (mimic-form).
-- ```(:* <delimiter> <rule-name>)``` - (star-form) delimiter is either string, rule-name or ```:eps```.
-- ```(:+ <delimiter> <rule-name>)``` - (plus-form) delimiter is either string, rule-name or ```:eps```.
-- ```(:lex <lexer-rule>)``` - (lexer-rule-form).
+Each alternative can be one of the following:
+- ```-> <element>...``` - (simple-form) each element can be either rule-name or string.
+- ```-> :^ <rule-name>``` - (mimic-form).
+- ```-> :eps``` - (eps-form).
+- ```-> * <delimiter> <rule-name>``` - (star-form) delimiter is either string, rule-name or ```:eps```.
+- ```-> + <delimiter> <rule-name>``` - (plus-form) delimiter is either string, rule-name or ```:eps```.
+- ```-> :lex <lexer-rule>``` - (lexer-rule-form).
+
+When star-form, plus-form or lexer-rule-form is specified it must be the only alternative in the rule.
 
 Result of parsing is an AST, which has the following form:
 ```lisp
 (<term-type> <children>...)
 ```
 
-For all types of rule-forms except for or-form ```<term-type>``` will be ```<rule-name>``` of the corresponding rule. In or-form
-each alternative has its own ```<term-type>``` if form of ```<rule-name>-<some-number>```.
-Thanks to it all the literals (strings) are not saved in term (for memory saving reason), 
-so the rule ```(rule1 "abc")``` will create terms like ```(rule1)``` but not ```(rule1 <grammar>::|123|)```.
+Each alternative will have its own ```<term-type>``` in the following form: ```<rule-name>-<some-number>```.
+Child is always either a term (for a rule-name in grammar) or a symbol (for lexer-rule-form). None of the
+literals mentioned in rules are preserved in the resulting terms.
 
-When mimic-form is present in or-form then the result of the rule in mimic form is return as-is without wrapping.
-The rule which is mentioned in mimic-form must have an option ```:mimic <rule-name>``` (TODO: get rid of it, because it can be found during code generation). 
-e.g. for the following grammar
+When mimic-form is present as one of alternative then the result of the rule in mimic form is return as-is without wrapping.
+For example using the following grammar
 ```lisp
 (defparser some-grammar
   (rule1 -> "abc"
          -> :^ rule2))
   (rule2 -> "123"))
 ```
-the result of parsing ```"123"``` will be ```(rule2)``` unlike ```(rule1 (rule2))``` which will be the result
-of the similar grammar using ordinary rule instead of mimic one.
+the result of parsing ```"123"``` will be ```(rule2)``` not ```(rule1 (rule2))``` which would be the result
+of the similar grammar without mimic rule.
