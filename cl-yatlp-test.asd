@@ -3,4 +3,5 @@
                #:lisp-unit2)
   :components ((:module tests
                 :serial t
-                :components ((:file "lexer")))))
+                :components ((:file "atn")
+                             (:file "lexer")))))

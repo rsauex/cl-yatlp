@@ -35,7 +35,7 @@
   (labels ((%process-table (getter)
              (maphash (lambda (id state)
                         (if (eq :rem state)
-                            (remhash id (atn-table atn))
+                            (remhash id (funcall getter atn))
                             (setf (gethash id (funcall getter atn)) state)))
                       (funcall getter delta))))
     (%process-table #'atn-table)
