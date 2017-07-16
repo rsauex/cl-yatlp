@@ -5,8 +5,8 @@
     (let* ((raw-accessor (or (getf (rest slot) :accessor) (first slot)))
            (et-accessor (symbolicate "@" raw-accessor)))
       `(progn
-         (defun ,et-accessor (rule)
-           (,raw-accessor (,element-getter (force-id rule))))
+         (defun ,et-accessor (id)
+           (,raw-accessor (,element-getter (force-id id))))
          (defsetf ,et-accessor (store) (x)
            `(setf (,',raw-accessor (,',element-getter (force-id ,store))) ,x))
          (export ',et-accessor)))))
@@ -46,8 +46,7 @@
 
 (defstate call-state (state)
   ((to :accessor state-call-to
-       :initarg :call-to
-       :type state)))
+       :initarg :call-to)))
 
 (defstate end-state (state)
   ((type :accessor state-end-type

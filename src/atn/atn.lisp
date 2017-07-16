@@ -16,11 +16,11 @@
 (defun force-id (id)
   (if (delayed-id-p id)
       (if (delayed-id-computed id)
-          (print (delayed-id-value id))
+          (delayed-id-value id)
           (progn
             (setf (delayed-id-computed id) t)
             (setf (delayed-id-value id)
-                  (print (funcall (delayed-id-value id))))))
+                  (funcall (delayed-id-value id)))))
       id))
 
 ;;; Tools
@@ -77,7 +77,10 @@
 
 (defun @get-rule (rule)
   "Get state for rule with name RULE."
-  (or (gethash (force-id rule) (atn-table *delta*))
+  (or (when-let (r (gethash (force-id rule) (atn-rules *delta*)))
+        (if (eq r :rem)
+            (error "No such rule: ~A" rule)
+            r))
       (get-rule *atn* rule)))
 
 (defun add-state (atn state type &rest args)
@@ -100,7 +103,10 @@ ARGS are passed to the constructor of class TYPE"
 (defun @get-state (state)
   "Get state from current atn.
 Error if STATE is not in current atn"
-  (or (gethash (force-id state) (atn-table *delta*))
+  (or (when-let (s (gethash (force-id state) (atn-table *delta*)))
+        (if (eq s :rem)
+            (error "No such state: ~A" state)
+            s))
       (get-state *atn* (force-id state))))
 
 (defun @state-type (state)
@@ -110,9 +116,7 @@ Error if STATE is not in current atn"
 (defun @typep (state type)
   "Returns t when `state' is of type `type'.
 nil otherwise."
-  (if-let (s (@get-state state))
-    (typep s type)
-    (error "No such state: ~S" state)))
+  (typep (@get-state state) type))
 
 (defun rem-state (atn state)
   (remhash state (atn-table atn)))
@@ -130,16 +134,16 @@ nil otherwise."
 
 (defun @states ()
   "Get all the states from current atn"
-  (union (remove-if (lambda (s) (eq :rem (@get-state s)))
+  (union (remove-if (lambda (s) (eq :rem (gethash s (atn-table *delta*))))
                     (hash-table-keys (atn-table *atn*)))
-         (remove-if (lambda (s) (eq :rem (@get-state s)))
+         (remove-if (lambda (s) (eq :rem (gethash s (atn-table *delta*))))
                     (hash-table-keys (atn-table *delta*)))))
 
 (defun @rules ()
   "Get all the rules from current atn"
-  (union (remove-if (lambda (s) (eq :rem (@get-rule s)))
+  (union (remove-if (lambda (s) (eq :rem (gethash s (atn-rules *delta*))))
                     (hash-table-keys (atn-rules *atn*)))
-         (remove-if (lambda (s) (eq :rem (@get-rule s)))
+         (remove-if (lambda (s) (eq :rem (gethash s (atn-rules *delta*))))
                     (hash-table-keys (atn-rules *delta*)))))
 
 ;;; Visiting
