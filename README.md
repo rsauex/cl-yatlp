@@ -1,4 +1,4 @@
-# cl-yatlp [![Build Status](https://travis-ci.org/rsauex/cl-yatlp.svg?branch=master)](https://travis-ci.org/rsauex/cl-yatlp)
+# cl-yatlp [![Build Status](https://travis-ci.org/rsauex/cl-yatlp.svg?branch=master)](https://travis-ci.org/rsauex/cl-yatlp) [![Coverage Status](https://coveralls.io/repos/github/rsauex/cl-yatlp/badge.svg?branch=master)](https://coveralls.io/github/rsauex/cl-yatlp?branch=master)
 Yet another tool for language processing
 
 Using this tool it is possible to build lexers and parsers (only LL(1) for now) in

@@ -1,8 +1,8 @@
-(defpackage #:lexer-transformation
-  (:use #:cl #:alexandria #:cond #:atn #:lexer-states #:lexer-creation)
+(defpackage #:cl-yatlp/lexer-transformation
+  (:use #:cl #:alexandria #:cl-yatlp/cond #:cl-yatlp/atn #:cl-yatlp/lexer-states #:cl-yatlp/lexer-creation)
   (:export #:nfa->dfa))
 
-(in-package #:lexer-transformation)
+(in-package #:cl-yatlp/lexer-transformation)
 
 (def-state-generic convert-state (state &optional in-loop?))
 (def-state-generic get-for-nexts (state))
