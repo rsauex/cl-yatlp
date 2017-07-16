@@ -1,5 +1,6 @@
 (defpackage #:cl-yatlp/parser-transformation
-  (:use #:cl #:alexandria #:cl-yatlp/atn #:cl-yatlp/parser-states)
+  (:use #:cl #:alexandria #:cl-yatlp/atn #:cl-yatlp/parser-states
+        #:cl-yatlp/transformations/mimic)
   (:export #:first-for-rule
            #:first-for-state
            #:follow-for-rule
@@ -151,6 +152,7 @@
 (defun transform (atn)
   (with-atn atn
     (mapc #'transform-rule (@rules))
+    (add-mimics)
     atn))
 
 ;;;;;;;;

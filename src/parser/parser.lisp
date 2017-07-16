@@ -165,7 +165,7 @@
   (let (body)
     (mapc (lambda (r)
             (let ((mimic (getf (@rule-options r) :mimic)))
-              (push `(defterm ,(symbolicate "%%" r) (,(or mimic 'term)) nil) body)))
+              (push `(defterm ,(symbolicate "%%" r) ,(or mimic '(term)) nil) body)))
           (@rules))
     (@traverse-atn
      (lambda (s)

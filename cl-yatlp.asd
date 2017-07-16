@@ -26,6 +26,9 @@
                               :serial t
                               :components ((:file "states")
                                            (:file "creation")
+                                           (:module transformations
+                                            :serial t
+                                            :components ((:file "mimic")))
                                            (:file "transformation")
                                            (:file "parser")))
 

@@ -4,4 +4,5 @@
   :components ((:module tests
                 :serial t
                 :components ((:file "atn")
+                             (:file "parser/transformations/mimic")
                              (:file "lexer")))))
