@@ -28,7 +28,8 @@
                                            (:file "creation")
                                            (:module transformations
                                             :serial t
-                                            :components ((:file "mimic")))
+                                            :components ((:file "mimic")
+                                                         (:file "opt-rule")))
                                            (:file "transformation")
                                            (:file "parser")))
 

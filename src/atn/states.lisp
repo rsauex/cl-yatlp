@@ -52,4 +52,5 @@
   ((type :accessor state-end-type
          :initarg :type)
    (options :accessor state-end-options
-           :initarg :options)))
+            :initform nil
+            :initarg :options)))
