@@ -3,6 +3,7 @@
   (:export #:grammar->atn
 
            #:->
+           #:-->
            #:*
            #:+))
 
@@ -18,43 +19,44 @@
 (defmethod state-for ((rule-type (eql :call)) format state-name next-state)
   (push :_ *format*)
   (@add-state state-name 'rule-state :nexts (list next-state)
-                                     :rule format))
+                                     :rule format)
+  next-state)
 
 (defmethod state-for ((rule-type (eql :str)) format state-name next-state)
   (push format *format*)
   (@add-state state-name 'str-state :nexts (list next-state)
-                                    :str format))
+                                    :str format)
+  next-state)
 
-(defmethod state-for ((rule-type (eql :eps)) format state-name next-state)
-  (@add-state state-name 'eps-state :nexts (list next-state)))
+;; (defmethod state-for ((rule-type (eql :eps)) format state-name next-state)
+;;   (@add-state state-name 'eps-state :nexts (list next-state)))
 
 (defmethod state-for ((rule-type (eql :lex)) format state-name next-state)
   (push :lex *format*)
   (@add-state state-name 'lex-state :nexts (list next-state)
-                                    :lex (second format)))
+                                    :lex (second format))
+  next-state)
 
 (defmethod state-for ((rule-type (eql :^)) format state-name next-state)
   (@add-state state-name 'mimic-state :nexts (list next-state)
-                                      :rule (second format)))
+                                      :rule (second format))
+  next-state)
 
 (defmethod state-for ((rule-type (eql :seq)) format state-name next-state)
   (cond
-    ((and (null (rest (rest format)))
-          (member (second format) '(:{ :} :v :> :< :. :!)))
-     (desr-rule->state (first format) state-name next-state)
-     (desr-rule->state (second format) nil nil))
-    ((null (rest format))
-     (desr-rule->state (first format) state-name next-state))
+    ((null format)
+     state-name)
     ((member (first format) '(:{ :} :v :> :< :. :!))
      (desr-rule->state (first format) nil nil)
      (state-for :seq (rest format) state-name next-state))
     (t
      (let ((seq-end (gensym)))
-       (desr-rule->state (first format) state-name seq-end)
-       (state-for :seq (rest format) seq-end next-state)))))
+       (desr-rule->state (first format) state-name next-state)
+       (state-for :seq (rest format) next-state seq-end)))))
 
 (defmethod state-for ((rule-type (eql :format)) format state-name next-state)
-  (push format *format*))
+  (push format *format*)
+  next-state)
 
 (defun desr-rule->state (format state-name next-state)
   (cond
@@ -83,16 +85,16 @@
                               (let (*format*
                                     (alter (gensym))
                                     (end-sym (gensym)))
-                                (desr-rule->state f alter end-sym)
-                                (@add-state end-sym 'p-end-state :type rule-name
-                                                               :format (reverse *format*))
+                                (let ((end-s (desr-rule->state f alter end-sym)))
+                                  (@add-state end-s 'p-end-state :type rule-name
+                                                                 :format (reverse *format*)))
                                 alter))
                             format)
              :options options))
 
-(defmethod rule-for ((rule-type (eql '*)) format rule-name options)
+(defmethod rule-for ((rule-type (eql :*)) format rule-name options)
   (destructuring-bind (delim &rest body)
-      (rest format)
+      format
     (let ((*format* (list delim :*))
           (body-sym (gensym))
           (end-sym (gensym)))
@@ -102,9 +104,9 @@
       (desr-rule->state body body-sym end-sym)
       (@add-state end-sym 'p-end-state :type rule-name :format (reverse *format*)))))
 
-(defmethod rule-for ((rule-type (eql '+)) format rule-name options)
+(defmethod rule-for ((rule-type (eql :+)) format rule-name options)
   (destructuring-bind (delim &rest body)
-      (rest format)
+      format
     (let ((*format* (list delim :+))
           (body-sym (gensym))
           (end-sym (gensym)))
@@ -117,7 +119,7 @@
 (defun parse-rule (rule)
   "Parses rule into name alternatives and options.
 Each rule has the following format (<name> {-> ...} [:options ...]"
-  (let ((name (first rule)))
+  (destructuring-bind (name type &rest body) rule
     (labels ((%till (list test)
                (loop for x on list
                      unless (funcall test (first x))
@@ -130,35 +132,36 @@ Each rule has the following format (<name> {-> ...} [:options ...]"
                    (ecase (first body)
                      (->
                       (multiple-value-bind (alternative rest)
-                          (%till (rest body) (lambda (x) (or (eq :options x) (eq '-> x))))
-                        (unless alternative
-                          (error "Empty alternative is not allowed"))
+                          (%till (rest body) (lambda (x) (member x '(:options -> -->))))
                         (%parse-body rest (cons alternative acc))))
+                     (-->
+                      (multiple-value-bind (alternative rest)
+                          (%till (rest body) (lambda (x) (member x '(:options -> -->))))
+                        (%parse-body rest (cons (cons :^ alternative) acc))))
                      (:options
                       (values (reverse acc) (rest body))))
                    (reverse acc))))
-      (multiple-value-bind (alternatives options)
-          (%parse-body (rest rule))
-        (values name alternatives options)))))
+      (ecase type
+        ((-> -->)
+         (multiple-value-bind (alternatives options)
+             (%parse-body (cons type body))
+           (values name alternatives options :or)))
+        ((:+ :*)
+         (destructuring-bind (delim rule &rest options) (rest body)
+           (values name (list delim rule) (rest options) type)))
+        (:lex
+         (destructuring-bind (regex &rest options) (rest body)
+           (values name regex (rest options) type)))))))
 
 (defun rule->state (rule)
-  (multiple-value-bind (name alternatives options)
+  (multiple-value-bind (name alternatives options type)
       (parse-rule rule)
-    (cond
-      ((null alternatives)
-       (error "Rule '~A' has no alternatives" name))
-      ;; 'plus' and 'star' rules
-      ((member (first (first alternatives)) '(* +))
-       (rule-for (first (first alternatives)) (print (first alternatives)) name options))
-      ;; ordinary rule      
-      (t
-       (rule-for :or alternatives name options)))))
+    (rule-for type alternatives name options)))
 
 (defun grammar->atn (grammar)
   "Transformate the given grammar into ATN"
   (let ((atn (make-atn))) 
-    (with-atn atn 
-      (dolist (rule grammar)
-        (rule->state rule))
+    (with-atn atn
+      (mapc #'rule->state grammar)
       (setf (@extra :start-rule) (first (first grammar)))
       atn)))

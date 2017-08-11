@@ -171,12 +171,13 @@
      (lambda (s)
        (when (@typep s 'p-end-state)
          (let ((rule (get-rule-for-state s)))
-          (push `(defterm ,(@state-end-type s) (,(symbolicate "%%" rule)) ,(@state-end-format s)) body)))))
+           (when (print rule)
+             (push `(defterm ,(@state-end-type s) (,(print (symbolicate "%%" rule))) ,(@state-end-format s)) body))))))
     (reverse body)))
 
 (defmacro defparser (grammar &body rules)
   (let ((*grammar* (make-keyword grammar)))
-    (with-atn (transform (grammar->atn rules)) 
+    (with-atn (transform (grammar->atn rules))
       (let ((parser-sym (gensym)))
         `(progn
            ,@(rules->defs)
@@ -215,16 +216,16 @@
      (defmethod term-format ((term ,name))
        ',format)))
 
-(let ((%%vals (make-hash-table)))
-  (defmacro once (&body body)
-    (let* ((val-sym (gensym))
-           (fn (lambda (val-fn)
-                 (multiple-value-bind (val has?)
-                     (gethash val-sym %%vals)
-                   (if has?
-                       val
-                       (setf (gethash val-sym %%vals) (funcall val-fn)))))))
-      `(funcall ,fn (lambda () ,@body)))))
+(defparameter %%vals (make-hash-table))
+
+(defmacro once (&body body)
+  (let* ((val-sym (gensym)))
+    `(multiple-value-bind (val has?)
+         (gethash ',val-sym %%vals)
+       (if has?
+           val
+           (setf (gethash ',val-sym %%vals)
+                 (funcall (lambda () ,@body))))) ))
 
 
 (defun print-term (term &optional (stream *standard-output*))
@@ -237,10 +238,12 @@
                (when components
                  (unless (eq :eps delim)
                    (princ delim))
+                 (unless no-space?
+                   (princ " ")) (setf no-space? t)
                  (%print-with-format format (list (first components)))
                  (%print-loop format delim (rest components))))
              (%print-with-format (format components)
-               (pprint-newline :fill)
+               ;;(pprint-newline :fill)
                (when format
                  (if (stringp (first format))
                      (progn
