@@ -59,7 +59,7 @@
   (remove-if (rcurry #'@typep 'end-state) (@state-nexts state)))
 
 (defun delayed-rule (name)
-  (make-delayed-id :value (lambda () (rule-state (@get-rule name)))))
+  (make-delayed-id :value (lambda () (first (rule-state (@get-rule name))))))
 
 (defun add-rule (atn rule type &rest args)
   "Add rule into atn"

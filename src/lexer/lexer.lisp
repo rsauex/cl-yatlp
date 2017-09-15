@@ -56,6 +56,7 @@
 
 (defun grammar->tagbody (rules fn-name grammar)
   (with-atn (nfa->dfa (grammar->nfa rules))
+    (@atn->dot)
     `(tagbody
         (go :start)
         ,@(mappend (lambda (s)
