@@ -162,8 +162,12 @@ nil otherwise."
 
 ;;; Traversal
 
-(defun @traverse-atn (fn)
-  (mapc fn (@states)))
+(defun @traverse-atn (fn &key filter)
+  (mapc (lambda (s) 
+          (when (or (null filter)
+                    (funcall filter s))
+            (funcall fn s)))
+        (@states)))
 
 ;;; Generic
 

@@ -5,19 +5,27 @@
            #:cond-intersection
            #:cond-equal
            #:cond-optimize
-           #:cond->test))
+           #:cond->test
+           #:possible-values))
 
 (in-package #:cl-yatlp/cond)
 
 (defmacro defop (name params &body body)
   (let ((type-params (loop for param in params
-                           collect (gensym))))
+                           collect (gensym)))
+        (generic-fn-name (symbolicate "%" name)))
     (labels ((%make-method (form-params body)
-               `(defmethod ,name (,@(mapcar (lambda (sym type) `(,sym (eql ,type)))
-                                            type-params form-params)
-                                  ,@params)
-                  ,@body)))
+               (let ((type-params
+                       (mapcar (lambda (sym type)
+                                 (if (eq t type)
+                                     sym
+                                     `(,sym (eql ,type))))
+                               type-params form-params)))
+                 `(defmethod ,generic-fn-name (,@type-params
+                                               ,@params)
+                    ,@body))))
       `(progn
+         (defgeneric ,generic-fn-name (,@type-params ,@params))
          ,@(mapcar (lambda (entry)
                      (destructuring-bind (i-types &rest i-body)
                          entry
@@ -25,21 +33,27 @@
                           ,(%make-method i-types i-body)
                           ,(unless (or (eq (first i-types) (second i-types))
                                        (member (reverse i-types) body :key #'first :test #'equal))
-                             (%make-method (reverse i-types) `((,name ,@i-types ,@(reverse params))))))))
-                   body)))))
+                             (%make-method (reverse i-types) `((,generic-fn-name ,@i-types ,@(reverse params))))))))
+                   body)
+         (defun ,name ,params
+           (cond-optimize
+            (,generic-fn-name ,@(mapcar (curry #'list 'cond-type) params)
+                              ,@params)))))))
 
 (defun cond-type (el)
   (cond
     ((characterp el)
      :char)
+    ((eq :eps el)
+     :eps)
+    ((eq t el)
+     :t)
+    ((eq nil el)
+     :nil)
     ((listp el)
      (if (keywordp (first el))
          (first el)
          :list))
-    ((eq :eps el)
-     :eps)
-    ((eq t el)
-     t)
     (t (error "Malformed cond: ~A" el))))
 
 (defun next-char (char)
@@ -53,11 +67,9 @@
              (char<= char (third range)))
     char))
 
-(defgeneric %cond-union (type1 type2 x y))
-(defgeneric %cond-difference (type1 type2 x y))
-(defgeneric %cond-intersection (type1 type2 x y))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defop %cond-intersection (x y) 
+(defop cond-intersection (x y) 
   ((:char :char)
    (when (eq x y) x))
   ((:char :r)
@@ -92,17 +104,13 @@
   ((:eps :~)
    nil)
   ((:eps :eps)
-   :eps))
+   :eps)
+  ((:nil t)
+   nil)
+  ((:t t)
+   y))
 
-(defun cond-intersection (x y)
-  (cond-optimize
-   (when (and x y)
-     (cond
-       ((eq t x) y)
-       ((eq t y) x)
-       (t (%cond-intersection (cond-type x) (cond-type y) x y))))))
-
-(defop %cond-difference (x y)
+(defop cond-difference (x y)
   ((:char :char)
    (unless (eq x y) x))
   ((:char :list)
@@ -186,46 +194,20 @@
    (list :~ (cond-union (rest x) y)))
   ((:~ :~)
    (cond-intersection x (rest y)))
-  ((:eps :char)
+  ((:eps t)
    :eps)
-  ((:eps :list)
-   :eps)
-  ((:eps :r)
-   :eps)
-  ((:eps :~)
-   :eps)
-  ((:char :eps)
+  ((t :eps)
    x)
-  ((:list :eps)
-   x)
-  ((:r :eps)
-   x)
-  ((:~ :eps)
+  ((t :t)
+   nil)
+  ((:t t)
+   (list :~ y))
+  ((:nil t)
+   nil)
+  ((t :nil)
    x))
 
-(defun cond-difference (x y)
-  (cond-optimize
-   (cond
-     ((eq t y)
-      x)
-     ((eq t x)
-      (cond
-        ((eq t y)
-         nil)
-        ((eq :~ (cond-type y))
-         (rest y))
-        (t
-         (list :~ y))))
-     ((not (or x y))
-      nil)
-     ((null x)
-      nil)
-     ((null y)
-      x)
-     (t
-      (%cond-difference (cond-type x) (cond-type y) x y)))))
-
-(defop %cond-union (x y)
+(defop cond-union (x y)
   ((:char :char)
    (if (char/= x y)
        (list x y)
@@ -285,26 +267,11 @@
    (if (cond-intersection (rest x) (rest y))
        (list x (cond-difference y x))
        t))
-  ((:eps :char)
-   (list x y))
-  ((:eps :list)
-   (cons x y))
-  ((:eps :r)
-   (list x y))
-  ((:eps :~)
-   (list x y)))
+  ((:eps t)     (list x y))
+  ((:t   t)     t)
+  ((:nil t)     y))
 
-(defun cond-union (x y)
-  (cond
-    ((or (eq t x)
-         (eq t y))
-     t)
-    ((null x)
-     y)
-    ((null y)
-     x)
-    (t
-     (%cond-union (cond-type x) (cond-type y) x y))))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defun flatten-if-not (predicate tree)
   (let (list)
@@ -322,7 +289,8 @@
 (defgeneric %cond-optimize (type x))
 
 (defmethod %cond-optimize ((type (eql :list)) x)
-  (reduce #'cond-union x :initial-value nil))
+  (remove-duplicates
+   (mapcar #'cond-optimize x)))
 
 (defmethod %cond-optimize ((type (eql :r)) x)
   (if (char= (second x) (third x))
@@ -349,8 +317,8 @@
 
 (defun cond-optimize (condition)
   (let ((condition (flatten-cond condition)))
-    ;;(print condition)
-    ;;(break)
+    ;; (print condition)
+    ;; (break)
     (cond
       ((null condition)
        condition)
@@ -381,3 +349,22 @@
      t)
     (t
      (error "Malformed cond: ~A" cond))))
+
+(defun possible-values (conds)
+  "For a set of conds returns an equivalent disjoint-set."
+  (labels ((%all-intersections (conds)
+             (loop for (c . rest) on conds
+                   append (remove nil (reduce #'cons rest
+                                              :initial-value nil
+                                              :from-end t
+                                              :key (lambda (rest-c) (cond-intersection c rest-c)))))))
+    (let ((inters (remove-duplicates (%all-intersections conds))))
+      (if (null inters)
+          conds
+          (possible-values
+           (remove-duplicates
+            (remove nil
+                    (reduce #'cons conds
+                            :initial-value inters
+                            :from-end t
+                            :key (lambda (c) (cond-difference c inters))))))))))

@@ -6,78 +6,69 @@
 
 (defgeneric state-for (rule-type format next-states ))
 
-(defmacro def-state-for (type &rest body)
+(defmacro def-state-for (type vars &rest body)
   `(defmethod state-for ((rule-type (eql ,type)) form next-states)
-     ,@body))
+     (let ,(mapcar (rcurry #'list '(gensym)) vars)
+       ,@body)))
 
-(def-state-for :char
-  (let ((state-id (gensym)))
-    (@add-state state-id 'simple-state :cond t :nexts next-states)
-    (list state-id form)))
+(def-state-for :char (state-id)
+  (@add-state state-id 'simple-state :nexts next-states)
+  (list state-id form))
 
-(def-state-for :any
-  (let ((state-id (gensym)))
-    (@add-state state-id 'simple-state :cond t :nexts next-states)
-    (list state-id t)))
+(def-state-for :any (state-id)
+  (@add-state state-id 'simple-state :nexts next-states)
+  (list state-id t))
 
-(def-state-for :r
-  (let ((state-id (gensym)))
-    (@add-state state-id 'simple-state :cond t :nexts next-states)
-    (list state-id form)))
+(def-state-for :r (state-id)
+  (@add-state state-id 'simple-state :nexts next-states)
+  (list state-id form))
 
-(def-state-for :or
-  (let ((state-id (gensym)))
-    (@add-state state-id 'simple-state
-                :cond t
-                :nexts (mapcar (lambda (f)
-                                 (rule-form->state f next-states))
-                               (rest form)))
-    (list state-id :eps)))
+(def-state-for :or (state-id)
+  (@add-state state-id 'simple-state
+              :nexts (mapcar (lambda (f)
+                               (rule-form->state f next-states))
+                             (rest form)))
+  (list state-id :eps))
 
-(def-state-for :seq
+(def-state-for :seq ()
   (if (null (rest form))
       (rule-form->state (first form) next-states)
       (rule-form->state (first form) (list (state-for :seq (rest form) next-states)))))
 
-(def-state-for :?
-  (let ((state-id (gensym))
-        (present (state-for :seq (rest form) next-states)))
-    (@add-state state-id 'simple-state :cond t :nexts (cons present next-states))
+(def-state-for :? (state-id)
+  (let ((present (state-for :seq (rest form) next-states)))
+    (@add-state state-id 'simple-state :nexts (cons present next-states))
     (list state-id :eps)))
 
-(def-state-for :*
-  (let* ((state-id (gensym))
-         (body (state-for :seq (rest form) (cons (list state-id :eps) next-states))))
-    (@add-state state-id 'simple-state :cond t :nexts (cons body next-states))
+(def-state-for :* (state-id)
+  (let ((body (state-for :seq (rest form) (cons (list state-id :eps) next-states))))
+    (@add-state state-id 'simple-state :nexts (cons body next-states))
     (list state-id :eps)))
 
-(def-state-for :*?
-  (let* ((state-id (gensym))
-         (body (state-for :seq (rest form) (cons (list state-id :eps) next-states))))
-    (@add-state state-id 'simple-state :cond t :nexts (cons body next-states))
-    (list state-id :eps)))
+(def-state-for :*? (start-id end-id)
+  (let ((body (state-for :seq (rest form) `((,end-id :eps)))))
+    (@add-state start-id 'ng-loop-start :nexts (list body (list end-id :eps)))
+    (@add-state end-id 'ng-loop-end :nexts (cons (list start-id :eps) next-states))
+    (list start-id :eps)))
 
-(def-state-for :+
-  (let* ((body-end (gensym))
-         (body (state-for :seq (rest form) `((,body-end :eps)))))
-    (@add-state body-end 'simple-state :cond t :nexts (cons body next-states))
+(def-state-for :+ (body-end)
+  (let ((body (state-for :seq (rest form) `((,body-end :eps)))))
+    (@add-state body-end 'simple-state :nexts (cons body next-states))
     body))
 
-(def-state-for :+?
-  (let* ((body-end (gensym))
-         (body (state-for :seq (rest form) `((,body-end :eps)))))
-    (@add-state body-end 'simple-state :cond t :nexts (cons body next-states))
-    body))
+(def-state-for :+? (start-id end-id)
+  (let ((body (state-for :seq (rest form) `((,end-id :eps)))))
+    (@add-state start-id 'ng-loop-start :nexts (list body))
+    (@add-state end-id 'ng-loop-end :nexts (cons (list start-id :eps) next-states))
+    (list start-id :eps)))
 
-(def-state-for :call
-  (let ((state-id (gensym)))
-    (@add-state state-id 'call-state :call-to (delayed-rule form) :nexts next-states)
-    (list state-id :eps)))
+(def-state-for :call (state-id)
+  (@add-state state-id 'call-state :call-to (delayed-rule form) :nexts next-states)
+  (list state-id :eps))
 
-(def-state-for :~
-  (let ((state-id (gensym)))
-    (@add-state state-id 'simple-state :cond t :nexts next-states)
-    (list state-id form)))
+(def-state-for :~ (state-id)
+  (@add-state state-id 'simple-state :cond t :nexts next-states)
+  (list state-id form))
 
 (defun rule-form->state (form next-states)
   (cond
@@ -123,33 +114,39 @@ a list of id of first states of each non-fragment rule."
   "For a given grammar creates an nondeterministic finite automaton (nfa)"
   (let ((nfa (make-atn))) 
     (with-atn nfa 
-      (@add-state :start 'simple-state :nexts (grammar->start-states grammar))
-      (setf (@extra :order) (mapcar #'first grammar)))
+      (let ((start-id (gensym)))
+        (@add-state start-id 'simple-state :nexts (grammar->start-states grammar))
+        (setf (@extra :start) start-id)
+        (setf (@extra :order) (mapcar #'first grammar))))
     nfa))
 
+;;;
 
-(def-state-generic state->dot (state stream)
-  (:documentation
-   "Output state's representation in dot format into stream"))
+;; (def-state-generic state->dot (state stream)
+;;   (:documentation
+;;    "Output state's representation in dot format into stream"))
 
-(def-state-method state->dot ((state state) stream)
-  (format stream "  ~A [label = \"~A\\n~A [~A]\"];~%"
-          state state (type-of (@get-state state)) (@state-cond state))
-  (dolist (x (@state-nexts state))
-    (format stream "  ~A -> ~A [label=\"~A\"]~%"
-            state (first x) (second x))))
+;; (def-state-method state->dot ((state state) stream)
+;;   (format stream "  ~A [label = \"~A\\n~A [~A]\"];~%"
+;;           state state (type-of (@get-state state)) (@state-cond state))
+;;   (dolist (x (@state-nexts state))
+;;     (format stream "  ~A -> ~A [label=\"~A\"]~%"
+;;             state (first x) (second x))))
 
-(def-state-method state->dot ((state end-state) stream)
-  (format stream "  ~A [peripheries=2 label=\"~A\\n~A [~A]\\ntype = ~A\"];~%"
-          state state (@state-type state) (@state-cond state) (@state-end-type state)))
+;; (def-state-method state->dot ((state end-state) stream)
+;;   (format stream "  ~A [peripheries=2 label=\"~A\\n~A [~A]\\ntype = ~A\"];~%"
+;;           state state (@state-type state) (@state-cond state) (@state-end-type state))
+;;   (dolist (x (@state-nexts state))
+;;     (format stream "  ~A -> ~A [label=\"~A\"]~%"
+;;             state (first x) (second x))))
 
-(defun @latn->dot (&optional (stream *standard-output*))
-  "Output ATN into stream in dot format"
-  (format stream "digraph g {~%")
-  (@traverse-atn (rcurry #'state->dot stream))
-  (format stream "}"))
+;; (defun @latn->dot (&optional (stream *standard-output*))
+;;   "Output ATN into stream in dot format"
+;;   (format stream "digraph g {~%")
+;;   (@traverse-atn (rcurry #'state->dot stream))
+;;   (format stream "}"))
 
-(defun latn->dot (atn &optional (stream *standard-output*))
-  "Output ATN into stream in dot format"
-  (with-atn atn
-    (@latn->dot stream)))
+;; (defun latn->dot (atn &optional (stream *standard-output*))
+;;   "Output ATN into stream in dot format"
+;;   (with-atn atn
+;;     (@latn->dot stream)))
