@@ -155,3 +155,23 @@
                                     (%lexer cur line pos returnp newlinep)))))))))
       (load-cur)
       (%lexer *cur* *line* *pos* *returnp* *newlinep*))))
+
+
+
+;; (def-state-generic state->dot (state stream)
+;;   (:documentation
+;;    "Output state's representation in dot format into stream"))
+
+(def-state-method state->dot ((state simple-state) stream)
+  (format stream "  ~A [label = \"~A\\n~A [~A]\"];~%"
+          state state (type-of (@get-state state)) (@state-cond state))
+  (dolist (x (@state-nexts state))
+    (format stream "  ~A -> ~A [label=\"~A\"]~%"
+            state (first x) (second x))))
+
+(def-state-method state->dot ((state end-state) stream)
+  (format stream "  ~A [peripheries=2 label=\"~A\\n~A [~A]\\ntype = ~A\"];~%"
+          state state (@state-type state) (@state-cond state) (@state-end-type state))
+  (dolist (x (@state-nexts state))
+    (format stream "  ~A -> ~A [label=\"~A\"]~%"
+            state (first x) (second x))))

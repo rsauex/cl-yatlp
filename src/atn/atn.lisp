@@ -55,11 +55,8 @@
 (defsetf @extra (store) (x)
   `(setf (gethash ,store (atn-extra cl-yatlp/atn::*atn*)) ,x))
 
-(defun @state-nexts-without-end (state)
-  (remove-if (rcurry #'@typep 'end-state) (@state-nexts state)))
-
 (defun delayed-rule (name)
-  (make-delayed-id :value (lambda () (first (rule-state (@get-rule name))))))
+  (make-delayed-id :value (lambda () (rule-state (@get-rule name)))))
 
 (defun add-rule (atn rule type &rest args)
   "Add rule into atn"
@@ -145,6 +142,9 @@ nil otherwise."
                     (hash-table-keys (atn-rules *atn*)))
          (remove-if (lambda (s) (eq :rem (gethash s (atn-rules *delta*))))
                     (hash-table-keys (atn-rules *delta*)))))
+
+(defun @same-ids? (id1 id2)
+  (eq (force-id id1) (force-id id2)))
 
 ;;; Visiting
 
@@ -233,10 +233,6 @@ These generic functions must be called only within with-atn"
 (def-state-method state->dot ((state state) stream)
   (format stream "~A [label = \"~A\\n~A [~A]\"];~%~A -> {~{~A~^ ~}};~%"
           state state (type-of (@get-state state)) (@state-cond state) state (@state-nexts state)))
-
-(def-state-method state->dot ((state end-state) stream)
-  (format stream "~A [peripheries=2 label=\"~A\\n~A [~A]\\ntype = ~A\"];~%"
-          state state (@state-type state) (@state-cond state) (@state-end-type state)))
 
 (defun @atn->dot (&optional (stream *standard-output*))
   "Output ATN into stream in dot format"

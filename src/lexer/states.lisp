@@ -11,12 +11,12 @@
 
 (defstate simple-state (state) ())
 
-(defstate eps-state (state) ())
-
-(defstate loop-state (state) ())
-
-(defstate ng-loop-state (loop-state) ())
-
-
 (defstate ng-loop-start (simple-state) ())
 (defstate ng-loop-end (simple-state) ())
+
+(defstate end-state (state)
+  ((type :accessor state-end-type
+         :initarg :type)
+   (options :accessor state-end-options
+            :initform nil
+            :initarg :options)))

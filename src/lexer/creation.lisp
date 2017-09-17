@@ -4,9 +4,17 @@
 
 (in-package #:cl-yatlp/lexer-creation)
 
-(defgeneric state-for (rule-type format next-states ))
+;;; Creating NFA from lexer rules ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; Method for each type of form in rule
+
+(defgeneric state-for (rule-type form next-states)
+  (:documentation "Creates necessary states and returns a list with
+entry state and an input cond."))
 
 (defmacro def-state-for (type vars &rest body)
+  "Macro for defining `state-for' methods. Each value in `vars' must be a symbol,
+which will be \"let'ed\" to gensyms."
   `(defmethod state-for ((rule-type (eql ,type)) form next-states)
      (let ,(mapcar (rcurry #'list '(gensym)) vars)
        ,@body)))
@@ -25,8 +33,7 @@
 
 (def-state-for :or (state-id)
   (@add-state state-id 'simple-state
-              :nexts (mapcar (lambda (f)
-                               (rule-form->state f next-states))
+              :nexts (mapcar (rcurry #'rule-form->state next-states)
                              (rest form)))
   (list state-id :eps))
 
@@ -71,6 +78,7 @@
   (list state-id form))
 
 (defun rule-form->state (form next-states)
+  "Call the corresponding `state-for' method for the `form'."
   (cond
     ((null form)
      next-states)
@@ -89,8 +97,8 @@
     (t (error "Wrong rule form ~A" form))))
 
 (defun rule->state (rule)
-  "Transforms a given rule `rule' into a sequence of states in atn.
-Returns the first of them."
+  "Transforms a given rule `rule' into a sequence of states in NFA.
+Returns the first of them and the input cond."
   (let ((start-state (gensym))
         (end-state (gensym))) 
     (destructuring-bind (name form &rest options)
@@ -106,7 +114,7 @@ a list of id of first states of each non-fragment rule."
   (loop for rule in grammar
         for (rule-name _ . rule-options) = rule
         for start-state = (rule->state rule)
-        do (@add-rule rule-name 'rule :state start-state :options rule-options)
+        do (@add-rule rule-name 'rule :state (first start-state) :options rule-options)
         unless (member :fragment rule-options)
           collect start-state))
 
@@ -119,34 +127,3 @@ a list of id of first states of each non-fragment rule."
         (setf (@extra :start) start-id)
         (setf (@extra :order) (mapcar #'first grammar))))
     nfa))
-
-;;;
-
-;; (def-state-generic state->dot (state stream)
-;;   (:documentation
-;;    "Output state's representation in dot format into stream"))
-
-;; (def-state-method state->dot ((state state) stream)
-;;   (format stream "  ~A [label = \"~A\\n~A [~A]\"];~%"
-;;           state state (type-of (@get-state state)) (@state-cond state))
-;;   (dolist (x (@state-nexts state))
-;;     (format stream "  ~A -> ~A [label=\"~A\"]~%"
-;;             state (first x) (second x))))
-
-;; (def-state-method state->dot ((state end-state) stream)
-;;   (format stream "  ~A [peripheries=2 label=\"~A\\n~A [~A]\\ntype = ~A\"];~%"
-;;           state state (@state-type state) (@state-cond state) (@state-end-type state))
-;;   (dolist (x (@state-nexts state))
-;;     (format stream "  ~A -> ~A [label=\"~A\"]~%"
-;;             state (first x) (second x))))
-
-;; (defun @latn->dot (&optional (stream *standard-output*))
-;;   "Output ATN into stream in dot format"
-;;   (format stream "digraph g {~%")
-;;   (@traverse-atn (rcurry #'state->dot stream))
-;;   (format stream "}"))
-
-;; (defun latn->dot (atn &optional (stream *standard-output*))
-;;   "Output ATN into stream in dot format"
-;;   (with-atn atn
-;;     (@latn->dot stream)))
