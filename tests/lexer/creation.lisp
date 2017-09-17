@@ -1,5 +1,5 @@
 (defpackage #:lexer/creation-tests
-  (:use #:cl #:alexandria #:cl-yatlp/atn #:cl-yatlp/lexer-states #:cl-yatlp/lexer-creation #:lisp-unit2))
+  (:use #:cl #:cl-yatlp/atn #:cl-yatlp/lexer-states #:cl-yatlp/lexer-creation #:lisp-unit2))
 
 (in-package #:lexer/creation-tests)
 

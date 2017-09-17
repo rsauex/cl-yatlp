@@ -1,11 +1,9 @@
 (defpackage #:cl-yatlp/lexer-states
   (:use #:cl #:cl-yatlp/atn)
   (:export #:simple-state
-           #:loop-state
-           #:ng-loop-state
-           #:eps-state
            #:ng-loop-start
-           #:ng-loop-end))
+           #:ng-loop-end
+           #:end-state))
 
 (in-package #:cl-yatlp/lexer-states)
 

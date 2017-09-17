@@ -7,6 +7,7 @@
            #:eps-state
            #:mimic-state
            #:p-end-state
+           #:end-state
            
            #:simple-rule
            #:or-rule
@@ -40,6 +41,14 @@
   ((format :accessor state-end-format
            :initarg :format
            :initform nil)))
+
+(defstate end-state (state)
+  ((type :accessor state-end-type
+         :initarg :type)
+   (options :accessor state-end-options
+            :initform nil
+            :initarg :options)))
+
 
 (defrule simple-rule (rule) ())
 
