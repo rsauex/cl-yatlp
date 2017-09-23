@@ -197,7 +197,7 @@ nil otherwise."
   (defun %def-%-method (name args)
     (multiple-value-bind (qualifiers params body)
         (parse-defmethod-args args)
-      (let* ((generic-name (symbolicate "%%" name))
+      (let* ((generic-name (intern (symbol-name (symbolicate "%%" name)) (symbol-package name)))
              (param (first params))
              (type (if (listp param)
                        (second param)

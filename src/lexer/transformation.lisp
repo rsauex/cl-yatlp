@@ -83,11 +83,12 @@ which includes all of that closures."
 
 (defun nexts-for (set cond)
   "Return an epsilon closure for the set of states which can be accessed
-after states in `set' depending on the value of cond"
+after states in `set' depending on the value of cond. Cond must not be :eps"
   (eps-closure-for-set
    (mappend (lambda (state)
               (mappend (lambda (next)
-                         (and (cond-equal cond 
+                         (and (not (eq :eps (second next)))
+                              (cond-equal cond 
                                           (cond-intersection cond (second next)))
                               (list (first next))))
                        (@state-nexts state)))
