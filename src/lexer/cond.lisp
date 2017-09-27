@@ -358,38 +358,24 @@ Return value: :char :list :~ :r :t :nil."
 ;;; Miscellaneous ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defun cond->test (cond var)
-  (cond
-    ((characterp cond)
+  (case (cond-type cond)
+    (:char
      `(char= ,cond ,var))
-    ((listp cond)
-     (case (first cond)
-       (:r
-        `(and (char>= ,var ,(second cond))
-              (char<= ,var ,(third cond))))
-       (:~
-        `(not ,(cond->test (rest cond) var)))
-       (t
-        `(or ,@(mapcar (rcurry #'cond->test var) cond)))))
-    ((eq t cond)
+    (:r
+     `(char<= ,(second cond) ,var ,(third cond)))
+    (:~
+     `(not ,(cond->test (rest cond) var)))
+    (:list
+     `(or ,@(mapcar (rcurry #'cond->test var) cond)))
+    (:t
      t)
     (t
-     (error "Malformed cond: ~A" cond))))
+     (error "Cannot transform cond to test: ~A" cond))))
 
 (defun possible-values (conds)
   "For a set of conds returns an equivalent disjoint-set."
-  (labels ((%all-intersections (conds)
-             (loop for (c . rest) on conds
-                   append (remove nil (reduce #'cons rest
-                                              :initial-value nil
-                                              :from-end t
-                                              :key (lambda (rest-c) (cond-intersection c rest-c)))))))
-    (let ((inters (remove-duplicates (%all-intersections conds))))
-      (if (null inters)
-          conds
-          (possible-values
-           (remove-duplicates
-            (remove nil
-                    (reduce #'cons conds
-                            :initial-value inters
-                            :from-end t
-                            :key (lambda (c) (cond-difference c inters))))))))))
+  (remove-duplicates
+   (remove nil
+           (loop for (cond . rest) on conds
+                 collect (cond-difference cond rest)))
+   :test #'cond-equal))

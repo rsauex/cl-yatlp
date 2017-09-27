@@ -92,7 +92,9 @@
   ('(#\h (:r #\c #\d)) (cond-difference '(:r #\c #\h) '(:r #\e #\g)))
   ('(#\h #\c) (cond-difference '(:r #\c #\h) '(:r #\d #\g)))
   ('(:r #\c #\e) (cond-difference '(:r #\c #\h) '(:r #\f #\i)))
-  ('(:r #\c #\h) (cond-difference '(:r #\c #\h) '(:r #\i #\k))))
+  ('(:r #\c #\h) (cond-difference '(:r #\c #\h) '(:r #\i #\k)))
+  (nil (cond-difference '(:r #\b #\d) '(:r #\a #\e)))
+  (nil (cond-difference '(:r #\a #\b) '(:r #\a #\b))))
 
 (deftest difference.6
   ('((:r #\d #\e) (:r #\g #\h) (:r #\a #\b)) (cond-difference '(:r #\a #\h) '(#\c #\f))))
@@ -155,7 +157,10 @@
 (deftest union.4
   ('(#\e #\a (:r #\b #\d)) (cond-union '(#\a #\e) '(:r #\b #\d)))
   ('(#\c #\b #\d) (cond-union '(#\b #\c) '(:r #\b #\d)))
-  ('(#\e #\d #\c #\b) (cond-union '(#\b #\c #\d #\e) '(:r #\b #\d))))
+  ('(#\e #\d #\c #\b) (cond-union '(#\b #\c #\d #\e) '(:r #\b #\d)))
+  ('(#\c #\a #\b) (cond-union '(:r #\a #\c) '(#\a #\c)))
+  ('(#\c #\a #\b) (cond-union '(:r #\a #\b) '(#\a #\c)))
+  ('(#\b #\a #\c) (cond-union '(:r #\a #\c) '(#\a #\b))))
 
 (deftest union.5
   ('(#\d #\c #\b #\a) (cond-union '(#\a #\b) '(#\c #\d)))
@@ -167,9 +172,11 @@
 (deftest union.6
   ('(:r #\a #\d) (cond-union '(:r #\a #\b) '(:r #\c #\d)))
   ('((:r #\d #\e) (:r #\a #\b)) (cond-union '(:r #\a #\b) '(:r #\d #\e)))
-  ('(#\c #\a #\b) (cond-union '(:r #\a #\c) '(#\a #\c)))
-  ('(#\c #\a #\b) (cond-union '(:r #\a #\b) '(#\a #\c)))
-  ('(#\b #\a #\c) (cond-union '(:r #\a #\c) '(#\a #\b))))
+  ('(:r #\a #\d) (cond-union '(:r #\c #\d) '(:r #\a #\b)))
+  ('(:r #\b #\d) (cond-union '(:r #\b #\d) '(:r #\b #\c)))
+  ('(:r #\b #\d) (cond-union '(:r #\b #\d) '(:r #\c #\d)))
+  ('(:r #\b #\e) (cond-union '(:r #\b #\d) '(:r #\c #\e)))
+  ('(:r #\a #\d) (cond-union '(:r #\b #\d) '(:r #\a #\c))))
 
 (deftest union.7
   (t (cond-union #\b '(:~ #\b)))
@@ -185,7 +192,8 @@
 
 (deftest union.10
   (t (cond-union '(:~ #\a) '(:~ #\b)))
-  ('(:~ #\b) (cond-union '(:~ #\a #\b) '(:~ #\b #\c))))
+  ('(:~ #\b) (cond-union '(:~ #\a #\b) '(:~ #\b #\c)))
+  ('(:~ #\a #\b) (cond-union '(:~ #\a #\b #\c) '(:~ #\a #\b #\d))))
 
 (deftest union.11
   (t (cond-union #\a t))
@@ -199,9 +207,28 @@
   ('(:~ #\a) (cond-optimize '((((:~ ((((#\a)))))))))))
 
 (deftest optimize.2
-  (#\a (cond-optimize '(:~ (:~ #\a)))))
+  (#\a (cond-optimize '(:~ (:~ #\a))))
+  (nil (cond-optimize '(:~ t)))
+  (t (cond-optimize '(:~ nil))))
 
 (deftest optimize.3
   ('(:~ #\b) (cond-optimize '(#\a (:~ #\a #\b))))
   (#\a (cond-optimize '(nil #\a nil)))
-  ('(:r #\a #\b) (cond-optimize '(nil (:r #\a #\b)))))
+  ('(:r #\a #\b) (cond-optimize '(nil (:r #\a #\b))))
+  ('(:~ #\b) (cond-optimize '((:~ #\a #\b) (:~ #\b #\c)))))
+
+(deftest optimize.4
+  (#\a (cond-optimize '(:r #\a #\a))))
+
+
+(deftest cond->test.1
+  ('(char= #\a x) (cond->test #\a 'x))
+  ('(char<= #\a x #\c) (cond->test '(:r #\a #\c) 'x))
+  ('(not (or (char= #\a x))) (cond->test '(:~ #\a) 'x))
+  ('(or (char= #\a x) (char= #\b x)) (cond->test '(#\a #\b) 'x))
+  (t (cond->test t 'x)))
+
+
+(deftest possible-values.1
+  ('(#\a #\b) (possible-values '((#\a #\b) #\b)))
+  ('((#\b #\a)) (possible-values '(#\a (#\a #\b)))))
