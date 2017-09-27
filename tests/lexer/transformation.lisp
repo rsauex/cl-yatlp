@@ -76,3 +76,14 @@
                                         -> #\/ end
                                         -> (:~ #\/) loop2)))
            -> (:~ #\/) loop2)))
+
+(deftest transformation.7
+  ((rule ("/" (:*? :any) "/")))
+  (.simple-state
+   -> #\/ (.simple-state
+           -> (:~ #\/) (.simple-state
+                        = loop
+                        -> (:~ #\/) loop
+                        -> #\/ (.end-state rule
+                                = end))
+           -> #\/ end)))
