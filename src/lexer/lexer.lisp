@@ -1,68 +1,72 @@
 (defpackage #:cl-yatlp/lexer
-  (:use #:cl #:alexandria #:lazy-list #:cl-yatlp/cond #:cl-yatlp/atn #:cl-yatlp/lexer-states 
+  (:use #:cl #:alexandria #:cl-yatlp/cond #:cl-yatlp/atn #:cl-yatlp/lexer-states 
         #:cl-yatlp/lexer-creation #:cl-yatlp/lexer-transformation)
   (:export #:deflexer
            #:lexer))
 
 (in-package #:cl-yatlp/lexer)
 
-(def-state-generic state->action (state fn-name grammar))
+;;; Lexer runtime ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(def-state-method state->action ((state simple-state) fn-name grammar)
-  (let ((next-end (first (member-if (rcurry #'@typep 'end-state) (@state-nexts state))))
-        (nexts-without-end (remove-if (rcurry #'@typep 'end-state) (@state-nexts state))))
+(def-state-generic state->action (state grammar)
+  (:documentation "Returns body for state"))
+
+(def-state-method state->action ((state simple-state) grammar)
+  `(cond
+     ((null *cur*)
+      (error "Unexpected EOF at ~A:~A" *line* *pos*))
+     ,@(mapcar (lambda (s)
+                 `(,(cond->test (second s) '*cur*)
+                   (next ,(first s))))
+               (@state-nexts state))
+     (t
+      (error "Unexpected symbol ~S at ~A:~A" *cur* *line* *pos*))))
+
+(def-state-method state->action ((state end-state) grammar)
+  (let ((return-form
+          `(return
+             (list ',(if-let (skip? (member :skip (@state-end-options state)))
+                       (if (second skip?)
+                           :skip
+                           (@state-end-type state))
+                       (@state-end-type state))
+                   ,(if-let (transform (member :transform (@state-end-options state)))
+                      (cond
+                        ((symbolp (second transform))
+                         `',(second transform))
+                        ((listp transform)
+                         (cond
+                           ((null transform)
+                            `(out-no-add))
+                           ((eq 'function (first (second transform)))
+                            `(funcall ,(second transform) (out-no-add)))
+                           ((eq 'quote (first (second transform)))
+                            (second transform)))))
+                      `(out-no-add))
+                   start-line
+                   start-pos))))
     `(cond
        ((null *cur*)
-        ,(if next-end
-             `(go ,next-end)
-             `(error "Unexpected EOF at ~A:~A" *line* *pos*)))
+        ,return-form)
        ,@(mapcar (lambda (s)
-                   `(,(cond->test (@state-cond s) '*cur*)
-                     (next ,s)))
-                 nexts-without-end)
-       (t
-        ,(if next-end
-             `(go ,next-end)
-             `(progn
-                (warn "Unexpected symbol ~S at ~A:~A" *cur* *line* *pos*)
-                (read-char *stream* nil)
-                (load-cur)
-                ,(if (eq :start state)
-                     `(return-from ,fn-name (values :skip "" *line* *pos*))
-                     `(go ,state))))))))
+                   `(,(cond->test (second s) '*cur*)
+                     (next ,(first s))))
+                 (@state-nexts state))
+       (t ,return-form))))
 
-(def-state-method state->action ((state end-state) fn-name grammar)
-  `(return-from ,fn-name
-     (values ',(if-let (skip? (member :skip (@state-end-options state)))
-                 (if (second skip?)
-                     :skip
-                     (@state-end-type state))
-                 (@state-end-type state))
-             ,(if-let (transform (member :transform (@state-end-options state)))
-                (cond
-                  ((symbolp (second transform))
-                   `',(second transform))
-                  ((listp transform)
-                   (cond
-                     ((null transform)
-                      `(out-no-add))
-                     ((eq 'function (first (second transform)))
-                      `(funcall ,(second transform) (out-no-add)))
-                     ((eq 'quote (first (second transform)))
-                      (second transform)))))
-                `(intern (out-no-add) ',grammar))
-             *line*
-             *pos*)))
+(defun states->body (grammar-name)
+  (mappend (lambda (s)
+             `(,s ,(state->action s grammar-name)))
+           (@states)))
 
-(defun grammar->tagbody (rules fn-name grammar)
-  (with-atn (nfa->dfa (grammar->nfa rules))
-    `(tagbody
-        (go :start)
-        ,@(mappend (lambda (s)
-                     `(,s ,(state->action s fn-name grammar)))
-                   (@states)))))
+(defun grammar->tagbody (grammar grammar-name)
+  (with-atn (nfa->dfa (grammar->nfa grammar))
+    `(block nil
+       (tagbody
+          (go ,(@extra :start))
+          ,@(states->body grammar-name)))))
 
-
+;;; Lexer runtime ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defvar *stream*)
 (defvar *cur*)
@@ -106,12 +110,8 @@
 (defmacro next (state)
   `(progn (add) (go ,state)))
 
-(defun out ()
-  (read-char *stream* nil)
-  (concatenate 'string (reverse (cons *cur* *cur-res*))))
-
-(defun out-no-add ()
-  (concatenate 'string (reverse *cur-res*)))
+(defmacro out-no-add ()
+  `(concatenate 'string (reverse *cur-res*)))
 
 (defun register-lexer (grammar fn)
   (setf (gethash grammar cl-yatlp/common::*lexer-grammars*) fn))
@@ -120,12 +120,13 @@
   (let ((lexer-sym (gensym)))
     `(progn
        (defpackage ,grammar)
-       (defun ,lexer-sym (stream)
-         (let ((*stream* stream)
-               (*cur-res* nil))
+       (defun ,lexer-sym ()
+         (let ((*cur-res* nil)
+               (start-line *line*)
+               (start-pos *pos*))
            (when (null *cur*)
-             (return-from ,lexer-sym (values :eof nil *line* *pos*)))
-           ,(grammar->tagbody rules lexer-sym grammar)))
+             (return-from ,lexer-sym (list :eof nil *line* (1+ *pos*))))
+           ,(grammar->tagbody rules grammar)))
        (cl-yatlp/lexer::register-lexer ,(intern (symbol-name grammar) :keyword) #',lexer-sym))))
 
 (defun lexer (stream grammar)
@@ -136,21 +137,9 @@
          (*pos* 0)
          (*returnp* nil)
          (*newlinep* nil))
-    (labels ((%lexer (*cur* *line* *pos* *returnp* *newlinep*)
-               (let ((start-line *line*)
-                     (start-pos *pos*))
-                 (multiple-value-bind (type text)
-                     (funcall lexer-fn stream)
-                   (let ((cur *cur*)
-                         (line *line*)
-                         (pos *pos*)
-                         (returnp *returnp*)
-                         (newlinep *newlinep*))
-                     (if (eq :skip type)
-                         (%lexer cur line pos returnp newlinep)
-                         (if (eq type :eof)
-                             (list (list type text start-line start-pos))
-                             (lcons (list type text start-line start-pos)
-                                    (%lexer cur line pos returnp newlinep)))))))))
-      (load-cur)
-      (%lexer *cur* *line* *pos* *returnp* *newlinep*))))
+    (load-cur)
+    (loop for token = (funcall lexer-fn)
+          unless (eq :skip (first token))
+            collect token into tokens
+          when (eq :eof (first token))
+            return tokens)))

@@ -5,8 +5,7 @@
   :serial t
   :components ((:module src
                 :serial t
-                :components ((:file "lazy-list")
-                             (:file "common")
+                :components ((:file "common")
 
                              (:module atn
                               :serial t

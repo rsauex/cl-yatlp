@@ -47,10 +47,3 @@
 (defstate call-state (state)
   ((to :accessor state-call-to
        :initarg :call-to)))
-
-(defstate end-state (state)
-  ((type :accessor state-end-type
-         :initarg :type)
-   (options :accessor state-end-options
-            :initform nil
-            :initarg :options)))

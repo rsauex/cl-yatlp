@@ -49,7 +49,6 @@
     (progn
       (cl-yatlp/atn::add-state atn 'a 'state :cond 'b :nexts '(c d))
       (cl-yatlp/atn::add-state atn 'b 'call-state :call-to 'a)
-      (cl-yatlp/atn::add-state atn 'c 'end-state :type 'test :options '(g h))
       (assert-error 'error (cl-yatlp/atn::get-state atn 'd)))
   (a state
      cl-yatlp/atn::cond b
@@ -57,12 +56,7 @@
   (b call-state
      cl-yatlp/atn::cond t
      cl-yatlp/atn::nexts nil
-     cl-yatlp/atn::to a)
-  (c end-state
-     cl-yatlp/atn::cond t
-     cl-yatlp/atn::nexts nil
-     cl-yatlp/atn::type test
-     cl-yatlp/atn::options (g h)))
+     cl-yatlp/atn::to a))
 
 (def-atn-test.2 creation.2
     (progn
@@ -79,22 +73,14 @@
       (assert-typep 'state (@get-state 'a))
       (@add-state 'b 'call-state :call-to 'a)
       (assert-error 'error (cl-yatlp/atn::get-state atn 'b))
-      (assert-typep 'call-state (@get-state 'b))
-      (@add-state 'c 'end-state :type 'test :options '(g h))
-      (assert-error 'error (cl-yatlp/atn::get-state atn 'c))
-      (assert-typep 'end-state (@get-state 'c)))
+      (assert-typep 'call-state (@get-state 'b)))
   (a state
      cl-yatlp/atn::cond b
      cl-yatlp/atn::nexts (c d))
   (b call-state
      cl-yatlp/atn::cond t
      cl-yatlp/atn::nexts nil
-     cl-yatlp/atn::to a)
-  (c end-state
-     cl-yatlp/atn::cond t
-     cl-yatlp/atn::nexts nil
-     cl-yatlp/atn::type test
-     cl-yatlp/atn::options (g h)))
+     cl-yatlp/atn::to a))
 
 (def-atn-test.2 with-atn.2
     (with-atn atn
@@ -230,14 +216,6 @@
     (setf (@extra 'a) 'b)
     (assert-eq 'b (@extra 'a))))
 
-(define-test state-nexts-without-end.1
-    (:tags '(:all :atn))
-  (with-atn (make-atn)
-    (@add-state 'a 'state :cond 'b :nexts '(c d))
-    (@add-state 'c 'state :cond t)
-    (@add-state 'd 'end-state :type 'f :options nil)
-    (assert-equal '(c) (@state-nexts-without-end 'a))))
-
 (define-test delayed-rule.1
     (:tags '(:all :atn))
   (with-atn (make-atn)
@@ -251,13 +229,11 @@
     (:tags '(:all :atn))
   (let ((atn (make-atn)))
     (with-atn atn
-      (@add-state 'a 'state :nexts '(b c))
-      (@add-state 'b 'end-state :type 'aa :options nil)
+      (@add-state 'a 'state :nexts '(c))
       (@add-state 'c 'state :nexts '(a)))
     (assert-equal "digraph g {
 A [label = \"A\\nSTATE [T]\"];
-A -> {B C};
-B [peripheries=2 label=\"B\\nEND-STATE [T]\\ntype = AA\"];
+A -> {C};
 C [label = \"C\\nSTATE [T]\"];
 C -> {A};
 }" (with-output-to-string (res)

@@ -7,7 +7,6 @@
 
            #:rule
            #:state
-           #:end-state
            #:call-state
 
            #:with-atn
@@ -27,7 +26,8 @@
            #:@rules
 
            #:@typep
-           
+           #:@same-ids?
+
            #:delayed-rule
 
            #:with-visiting
@@ -40,5 +40,6 @@
            #:def-rule-generic
            #:def-rule-method
 
+           #:state->dot
            #:atn->dot
            #:@atn->dot))

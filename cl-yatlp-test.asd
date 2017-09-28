@@ -7,4 +7,7 @@
                              (:file "parser/parser-tests")
                              (:file "parser/transformations/mimic")
                              (:file "parser/transformations/opt-rule")
-                             (:file "lexer")))))
+                             (:file "lexer/test-utils")
+                             (:file "lexer/creation")
+                             (:file "lexer/cond")
+                             (:file "lexer/transformation")))))
