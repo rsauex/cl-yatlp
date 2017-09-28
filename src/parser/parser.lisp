@@ -1,5 +1,6 @@
 (defpackage #:cl-yatlp/parser
-  (:use #:cl #:alexandria #:cl-yatlp/cond #:cl-yatlp/atn #:cl-yatlp/parser-states #:cl-yatlp/parser-creation #:lazy-list #:cl-yatlp/lexer #:cl-yatlp/parser-transformation)
+  (:use #:cl #:alexandria #:cl-yatlp/cond #:cl-yatlp/atn #:cl-yatlp/parser-states
+        #:cl-yatlp/parser-creation #:cl-yatlp/lexer #:cl-yatlp/parser-transformation)
   (:export #:defparser
            #:parser))
 
@@ -8,7 +9,7 @@
 (defvar *grammar*)
 
 (defun head-parse-str (str)
-  `(head (lexer (make-string-input-stream ,str) ',*grammar*)))
+  `(first (lexer (make-string-input-stream ,str) ',*grammar*)))
 
 (defun fn-name-for-rule (rule)
   (symbolicate "%%" rule))
@@ -26,31 +27,31 @@
             (:str "\"~A\" expected.")
             (:alt "Either of ~A expected.")
             (:cons "Rule ~A does not consume all the input."))))
-    (if (eq :eof (first (head stream)))
+    (if (eq :eof (first (first stream)))
         (apply #'error
                (concatenate 'string "Unexpected EOF at ~A:~A. " last-part)
-               (third (head stream))
-               (fourth (head stream))
+               (third (first stream))
+               (fourth (first stream))
                values)
         (apply #'error
                (concatenate 'string "Unexpected token \"~A\" of type ~A at ~A:~A. " last-part)
-               (second (head stream))
-               (first (head stream))
-               (third (head stream))
-               (fourth (head stream))
+               (second (first stream))
+               (first (first stream))
+               (third (first stream))
+               (fourth (first stream))
                values))))
 
 (defun state->cond (state)
   (let ((first (first-for-state state)))
     (labels ((%first->cond (x)
-               (if (eq x :eps) 
+               (if (eq x :eps)
                    (mappend #'%first->cond (follow-for-state state))
                    (ecase (first x)
                      (:str
                       (let ((str `(once (second ,(head-parse-str (second x))))))
-                        `((eq ,str (second (head stream))))))
+                        `((eq ,str (second (first stream))))))
                      (:lex
-                      `((eq ',(second x) (first (head stream)))))))))
+                      `((eq ',(second x) (first (first stream)))))))))
       `(or ,@(mappend #'%first->cond first)))))
 
 (defun states-list->action (states results &optional mimic?)
@@ -85,16 +86,16 @@
 
 (def-state-method state->action ((state lex-state) results)
   (let ((result-sym (gensym)))
-    `(if (eq ',(@state-lex state) (first (head stream)))
-         (let ((,result-sym (second (head stream)))
-               (stream (tail stream)))
+    `(if (eq ',(@state-lex state) (first (first stream)))
+         (let ((,result-sym (second (first stream)))
+               (stream (rest stream)))
            ,(states-list->action (@state-nexts state) (cons result-sym results)))
          (cl-yatlp/parser::parser-error stream :lex ',(@state-lex state)))))
 
 (def-state-method state->action ((state str-state) results)
   (let ((str `(once (second ,(head-parse-str (@state-str state))))))
-    `(if (eq ,str (second (head stream)))
-         (let ((stream (tail stream)))
+    `(if (eq ,str (second (first stream)))
+         (let ((stream (rest stream)))
            ,(states-list->action (@state-nexts state) results))
          (cl-yatlp/parser::parser-error stream :str ',(@state-str state)))))
 
@@ -128,11 +129,11 @@
          (,(fn-name-for-rule (@state-rule (first (@rule-state rule)))) stream)
        (if ,(if (eq :eps delim)
                 body-cond
-                `(eq ,delim (second (head stream))))
+                `(eq ,delim (second (first stream))))
            (multiple-value-bind (,result1 stream)
                (,fn-name ,(if (eq :eps delim)
                               `stream
-                              `(tail stream)))
+                              `(rest stream)))
              (values (cons ,result ,result1) stream))
            (values (list ,result) stream)))))
 
@@ -192,7 +193,7 @@
                      ,@(mapcar (lambda (r)
                                  `(,r (,(fn-name-for-rule r) stream)))
                         (@rules)))
-                 (unless (eq :eof (first (head stream-rest)))
+                 (unless (eq :eof (first (first stream-rest)))
                    (cl-yatlp/parser::parser-error stream-rest :cons start-rule))
                  res)))
 

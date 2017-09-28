@@ -374,8 +374,20 @@ Return value: :char :list :~ :r :t :nil."
 
 (defun possible-values (conds)
   "For a set of conds returns an equivalent disjoint-set."
-  (remove-duplicates
-   (remove nil
-           (loop for (cond . rest) on conds
-                 collect (cond-difference cond rest)))
-   :test #'cond-equal))
+  (labels ((%clear (conds)
+             (remove-duplicates
+              (remove nil conds)
+              :test #'cond-equal))
+           (%all-intersections (conds)
+             (%clear
+              (loop for (c . rest) on conds
+                    append (mapcar (curry #'cond-intersection c) rest)))))
+    (let ((inters (%all-intersections conds)))
+      (if (null inters)
+          conds
+          (possible-values
+           (%clear
+            (reduce #'cons conds
+                    :initial-value inters
+                    :from-end t
+                    :key (rcurry #'cond-difference inters))))))))

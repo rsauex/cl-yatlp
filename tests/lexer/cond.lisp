@@ -231,4 +231,4 @@
 
 (deftest possible-values.1
   ('(#\a #\b) (possible-values '((#\a #\b) #\b)))
-  ('((#\b #\a)) (possible-values '(#\a (#\a #\b)))))
+  ('(#\b #\a) (possible-values '(#\a (#\a #\b)))))
