@@ -1,8 +1,8 @@
-(defpackage #:cl-yatlp/transformations/opt-rule
-  (:use #:cl #:alexandria #:cl-yatlp/atn #:cl-yatlp/parser-states)
+(uiop:define-package #:cl-yatlp/src/parser/transformations/opt-rule
+  (:use #:cl #:alexandria #:cl-yatlp/src/atn #:cl-yatlp/src/parser/states)
   (:export #:add-opt-rules))
 
-(in-package #:cl-yatlp/transformations/opt-rule)
+(in-package #:cl-yatlp/src/parser/transformations/opt-rule)
 
 (defun opt-rule? (rule)
   (let ((name (symbol-name rule)))

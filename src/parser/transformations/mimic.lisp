@@ -1,8 +1,8 @@
-(defpackage #:cl-yatlp/transformations/mimic
-  (:use #:cl #:alexandria #:cl-yatlp/atn #:cl-yatlp/parser-states)
+(uiop:define-package #:cl-yatlp/src/parser/transformations/mimic
+  (:use #:cl #:alexandria #:cl-yatlp/src/atn #:cl-yatlp/src/parser/states)
   (:export #:add-mimics))
 
-(in-package #:cl-yatlp/transformations/mimic)
+(in-package #:cl-yatlp/src/parser/transformations/mimic)
 
 (defun add-mimics-for-rule (rule)
   (let ((rules-to-mimic

@@ -1,11 +1,11 @@
-(defpackage #:cl-yatlp/lexer-states
-  (:use #:cl #:cl-yatlp/atn)
+(uiop:define-package #:cl-yatlp/src/lexer/states
+  (:use #:cl #:cl-yatlp/src/atn)
   (:export #:simple-state
            #:ng-loop-start
            #:ng-loop-end
            #:end-state))
 
-(in-package #:cl-yatlp/lexer-states)
+(in-package #:cl-yatlp/src/lexer/states)
 
 (defstate simple-state (state) ()
   (:documentation "Simple state in lexer FA"))

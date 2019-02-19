@@ -1,9 +1,9 @@
-(defpackage #:lexer/cond-tests
-  (:use #:cl #:cl-yatlp/cond #:lisp-unit2)
+(uiop:define-package #:cl-yatlp/tests/lexer/cond
+  (:use #:cl #:cl-yatlp/src/lexer/cond #:lisp-unit2)
   (:import-from #:alexandria
                 #:curry))
 
-(in-package #:lexer/cond-tests)
+(in-package #:cl-yatlp/tests/lexer/cond)
 
 (defmacro deftest (name &body body)
   `(define-test ,name

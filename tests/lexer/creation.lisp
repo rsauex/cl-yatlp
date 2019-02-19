@@ -1,7 +1,9 @@
-(defpackage #:lexer/creation-tests
-  (:use #:cl #:lexer/test-utils #:cl-yatlp/atn #:cl-yatlp/lexer-states #:cl-yatlp/lexer-creation #:lisp-unit2))
+(uiop:define-package #:cl-yatlp/tests/lexer/creation
+  (:use #:cl #:cl-yatlp/tests/lexer/test-utils
+        #:cl-yatlp/src/atn #:cl-yatlp/src/lexer/states
+        #:cl-yatlp/src/lexer/creation #:lisp-unit2))
 
-(in-package #:lexer/creation-tests)
+(in-package #:cl-yatlp/tests/lexer/creation)
 
 (defmacro deftest (name grammar main-test &rest rule-tests)
   `(define-test ,name

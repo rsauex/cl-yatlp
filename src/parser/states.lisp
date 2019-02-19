@@ -1,5 +1,5 @@
-(defpackage #:cl-yatlp/parser-states
-  (:use #:cl #:cl-yatlp/atn)
+(uiop:define-package #:cl-yatlp/src/parser/states
+  (:use #:cl #:cl-yatlp/src/atn)
   (:export #:simple-state
            #:rule-state
            #:lex-state
@@ -15,7 +15,7 @@
            #:s-loop-rule
            #:p-loop-rule))
 
-(in-package #:cl-yatlp/parser-states)
+(in-package #:cl-yatlp/src/parser/states)
 
 (defstate simple-state (state) ())
 

@@ -1,35 +1,17 @@
-(asdf:defsystem #:cl-yatlp
+(defsystem #:cl-yatlp
   :description "Yet another tool for language processing"
   :author "Yurii Hryhorenko <yuragrig@ukr.net>"
-  :depends-on (#:alexandria)
-  :serial t
-  :components ((:module src
-                :serial t
-                :components ((:file "common")
+  :class :package-inferred-system
+  :defsystem-depends-on (:asdf-package-system)
+  :depends-on (#:cl-yatlp/src/all)
+  :in-order-to ((test-op (load-op #:cl-yatlp/tests/all)))
+  :perform (test-op (o c) (symbol-call :cl-yatlp/tests/all :test-suite)))
 
-                             (:module atn
-                              :serial t
-                              :components ((:file "package")
-                                           (:file "states")
-                                           (:file "atn")))
+(defsystem #:cl-yatlp/tests
+  :description "Tests for cl-yatlp"
+  :author "Yurii Hryhorenko <yuragrig@ukr.net>"
+  :class :package-inferred-system
+  :defsystem-depends-on (:asdf-package-system)
+  :depends-on (#:cl-yatlp/test/all))
 
-                             (:module lexer
-                              :serial t
-                              :components ((:file "cond")
-                                           (:file "states")
-                                           (:file "creation")
-                                           (:file "transformation")
-                                           (:file "lexer")))
-
-                             (:module parser
-                              :serial t
-                              :components ((:file "states")
-                                           (:file "creation")
-                                           (:module transformations
-                                            :serial t
-                                            :components ((:file "mimic")
-                                                         (:file "opt-rule")))
-                                           (:file "transformation")
-                                           (:file "parser")))
-
-                             (:file "cl-yatlp")))))
+(register-system-packages "cl-yatlp/src/all" '(:cl-yatlp))

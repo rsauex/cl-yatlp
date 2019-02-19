@@ -1,13 +1,13 @@
-(defpackage #:opt-rule-tests
+(uiop:define-package #:cl-yatlp/tests/parser/transformations/opt-rule
   (:use #:cl
         #:lisp-unit2
-        #:parser-tests
-        #:cl-yatlp/transformations/opt-rule
-        #:cl-yatlp/atn
-        #:cl-yatlp/parser-states
-        #:cl-yatlp/parser-creation))
+        #:cl-yatlp/tests/parser/test-utils
+        #:cl-yatlp/src/parser/transformations/opt-rule
+        #:cl-yatlp/src/atn
+        #:cl-yatlp/src/parser/states
+        #:cl-yatlp/src/parser/creation))
 
-(in-package #:opt-rule-tests)
+(in-package #:cl-yatlp/tests/parser/transformations/opt-rule)
 
 (defun test-aux (grammar &rest test-cases)
   (with-atn (grammar->atn grammar)

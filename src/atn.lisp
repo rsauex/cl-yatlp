@@ -1,4 +1,101 @@
-(in-package #:cl-yatlp/atn)
+(uiop:define-package #:cl-yatlp/src/atn
+  (:use #:cl #:alexandria)
+  (:export #:make-atn
+
+           #:defstate
+           #:defrule
+
+           #:rule
+           #:state
+           #:call-state
+
+           #:with-atn
+
+           #:@extra
+
+           #:@get-state
+           #:@add-state
+           #:@rem-state
+           #:@state-type
+           #:@states
+           #:@state-nexts-without-end
+
+           #:@get-rule
+           #:@add-rule
+           #:@rem-rule
+           #:@rules
+
+           #:@typep
+           #:@same-ids?
+
+           #:delayed-rule
+
+           #:with-visiting
+           #:visit
+
+           #:@traverse-atn
+
+           #:def-state-generic
+           #:def-state-method
+           #:def-rule-generic
+           #:def-rule-method
+
+           #:state->dot
+           #:atn->dot
+           #:@atn->dot))
+
+
+(in-package #:cl-yatlp/src/atn)
+
+;;; States
+
+(eval-when (:compile-toplevel :load-toplevel)
+  (defun make-et-accessor (slot element-getter)
+    (let* ((raw-accessor (or (getf (rest slot) :accessor) (first slot)))
+           (et-accessor (symbolicate "@" raw-accessor)))
+      `(progn
+         (defun ,et-accessor (id)
+           (,raw-accessor (,element-getter (force-id id))))
+         (defsetf ,et-accessor (store) (x)
+           `(setf (,',raw-accessor (,',element-getter (force-id ,store))) ,x))
+         (export ',et-accessor)))))
+
+(defmacro defrule (name direct-superclasses direct-slots &rest options)
+  `(progn
+     (defclass ,name ,direct-superclasses
+       ,direct-slots
+       ,@options)
+     ,@(mapcar (rcurry #'make-et-accessor '@get-rule) direct-slots)))
+
+(defmacro defstate (name direct-superclasses direct-slots &rest options)
+  `(progn
+     (defclass ,name ,direct-superclasses
+       ,direct-slots
+       ,@options)
+     ,@(mapcar (rcurry #'make-et-accessor '@get-state) direct-slots)))
+
+;;; 
+
+(defrule rule ()
+  ((state :accessor rule-state
+          :initarg :state)
+   (options :accessor rule-options
+            :initarg :options)))
+
+;;;
+
+(defstate state ()
+  ((cond :accessor state-cond
+         :initarg :cond
+         :initform t)
+   (nexts :accessor state-nexts
+          :initarg :nexts
+          :type list
+          :initform nil)))
+
+(defstate call-state (state)
+  ((to :accessor state-call-to
+       :initarg :call-to)))
 
 ;;; Structure
 
@@ -43,17 +140,20 @@
 
 (defmacro with-atn (atn &body body)
   "Binds *STATE-TABLE* to STATE-TABLE"
-  `(let ((cl-yatlp/atn::*atn* ,atn)
-         (cl-yatlp/atn::*delta* (make-atn)))
+  `(let ((cl-yatlp/src/atn::*atn* ,atn)
+         (cl-yatlp/src/atn::*delta* (make-atn)))
      (multiple-value-prog1
          (progn ,@body)
-       (apply-delta cl-yatlp/atn::*atn* cl-yatlp/atn::*delta*))))
+       (apply-delta cl-yatlp/src/atn::*atn* cl-yatlp/src/atn::*delta*))))
 
 (defun @extra (name)
   (gethash name (atn-extra *atn*)))
 
 (defsetf @extra (store) (x)
-  `(setf (gethash ,store (atn-extra cl-yatlp/atn::*atn*)) ,x))
+  `(setf (gethash ,store (atn-extra cl-yatlp/src/atn::*atn*)) ,x))
+
+(defun @state-nexts-without-end (state)
+  (remove-if (rcurry #'@typep 'end-state) (@state-nexts state)))
 
 (defun delayed-rule (name)
   (make-delayed-id :value (lambda () (rule-state (@get-rule name)))))
@@ -153,7 +253,7 @@ nil otherwise."
 
 (defmacro with-visiting (&body body)
   "Allows using of visit fn"
-  `(let (cl-yatlp/atn::*visited*)
+  `(let (cl-yatlp/src/atn::*visited*)
      ,@body))
 
 (defun visit (state)

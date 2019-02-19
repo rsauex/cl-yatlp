@@ -1,7 +1,7 @@
-(defpackage #:cl-yatlp/parser-transformation
-  (:use #:cl #:alexandria #:cl-yatlp/atn #:cl-yatlp/parser-states
-        #:cl-yatlp/transformations/mimic
-        #:cl-yatlp/transformations/opt-rule)
+(uiop:define-package #:cl-yatlp/src/parser/transformation
+    (:use #:cl #:alexandria #:cl-yatlp/src/atn #:cl-yatlp/src/parser/states
+          #:cl-yatlp/src/parser/transformations/mimic
+          #:cl-yatlp/src/parser/transformations/opt-rule)
   (:export #:first-for-rule
            #:first-for-state
            #:follow-for-rule
@@ -9,7 +9,7 @@
            #:transform
            #:get-rule-for-state))
 
-(in-package #:cl-yatlp/parser-transformation)
+(in-package #:cl-yatlp/src/parser/transformation)
 
 (def-state-generic first-for-state (state))
 

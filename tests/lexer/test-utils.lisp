@@ -1,5 +1,6 @@
-(defpackage #:lexer/test-utils
-  (:use #:cl #:cl-yatlp/atn #:cl-yatlp/lexer-states #:cl-yatlp/lexer-creation #:lisp-unit2)
+(uiop:define-package #:cl-yatlp/tests/lexer/test-utils
+  (:use #:cl #:cl-yatlp/src/atn #:cl-yatlp/src/lexer/states
+        #:cl-yatlp/src/lexer/creation #:lisp-unit2)
   (:export #:with-lexer-test
            #:->
            #:=
@@ -9,7 +10,7 @@
            #:.ng-loop-start
            #:.ng-loop-end))
 
-(in-package #:lexer/test-utils)
+(in-package #:cl-yatlp/tests/lexer/test-utils)
 
 (defvar *states*)
 

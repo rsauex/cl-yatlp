@@ -1,4 +1,4 @@
-(defpackage #:cl-yatlp/cond
+(uiop:define-package #:cl-yatlp/src/lexer/cond
   (:use #:cl #:alexandria)
   (:export #:cond-union
            #:cond-difference
@@ -8,7 +8,7 @@
            #:cond->test
            #:possible-values))
 
-(in-package #:cl-yatlp/cond)
+(in-package #:cl-yatlp/src/lexer/cond)
 
 ;;; Cond ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Cond - is a structure which describes the set of chars

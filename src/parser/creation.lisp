@@ -1,5 +1,5 @@
-(defpackage #:cl-yatlp/parser-creation
-  (:use #:cl #:alexandria #:cl-yatlp/atn #:cl-yatlp/parser-states)
+(uiop:define-package #:cl-yatlp/src/parser/creation
+  (:use #:cl #:alexandria #:cl-yatlp/src/atn #:cl-yatlp/src/parser/states)
   (:export #:grammar->atn
 
            #:->
@@ -7,7 +7,7 @@
            #:*
            #:+))
 
-(in-package #:cl-yatlp/parser-creation)
+(in-package #:cl-yatlp/src/parser/creation)
 
 (defvar *format*)
 

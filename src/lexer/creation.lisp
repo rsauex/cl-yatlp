@@ -1,8 +1,8 @@
-(defpackage #:cl-yatlp/lexer-creation
-  (:use #:cl #:alexandria #:cl-yatlp/cond #:cl-yatlp/atn #:cl-yatlp/lexer-states)
+(uiop:define-package #:cl-yatlp/src/lexer/creation
+  (:use #:cl #:alexandria #:cl-yatlp/src/lexer/cond #:cl-yatlp/src/atn #:cl-yatlp/src/lexer/states)
   (:export #:grammar->nfa))
 
-(in-package #:cl-yatlp/lexer-creation)
+(in-package #:cl-yatlp/src/lexer/creation)
 
 ;;; Creating NFA from lexer rules ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

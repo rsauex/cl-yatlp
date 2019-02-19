@@ -1,10 +1,10 @@
-(defpackage #:cl-yatlp/lexer
-  (:use #:cl #:alexandria #:cl-yatlp/cond #:cl-yatlp/atn #:cl-yatlp/lexer-states 
-        #:cl-yatlp/lexer-creation #:cl-yatlp/lexer-transformation)
+(uiop:define-package #:cl-yatlp/src/lexer/generation
+  (:use #:cl #:alexandria #:cl-yatlp/src/lexer/cond #:cl-yatlp/src/atn #:cl-yatlp/src/lexer/states 
+        #:cl-yatlp/src/lexer/creation #:cl-yatlp/src/lexer/transformation)
   (:export #:deflexer
            #:lexer))
 
-(in-package #:cl-yatlp/lexer)
+(in-package #:cl-yatlp/src/lexer/generation)
 
 ;;; Lexer runtime ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -114,12 +114,12 @@
   `(concatenate 'string (reverse *cur-res*)))
 
 (defun register-lexer (grammar fn)
-  (setf (gethash grammar cl-yatlp/common::*lexer-grammars*) fn))
+  (setf (gethash grammar cl-yatlp/src/common::*lexer-grammars*) fn))
 
 (defmacro deflexer (grammar &body rules)
   (let ((lexer-sym (gensym)))
     `(progn
-       (defpackage ,grammar)
+       (uiop:define-package ,grammar)
        (defun ,lexer-sym ()
          (let ((*cur-res* nil)
                (start-line *line*)
@@ -127,10 +127,10 @@
            (when (null *cur*)
              (return-from ,lexer-sym (list :eof nil *line* (1+ *pos*))))
            ,(grammar->tagbody rules grammar)))
-       (cl-yatlp/lexer::register-lexer ,(intern (symbol-name grammar) :keyword) #',lexer-sym))))
+       (cl-yatlp/src/lexer/generation::register-lexer ,(intern (symbol-name grammar) :keyword) #',lexer-sym))))
 
 (defun lexer (stream grammar)
-  (let* ((lexer-fn (gethash grammar cl-yatlp/common::*lexer-grammars*))
+  (let* ((lexer-fn (gethash grammar cl-yatlp/src/common::*lexer-grammars*))
          (*stream* stream)
          (*cur* nil)
          (*line* 1)

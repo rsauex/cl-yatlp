@@ -1,9 +1,9 @@
-(defpackage #:parser-tests
+(uiop:define-package #:cl-yatlp/tests/parser/test-utils
   (:use #:cl
         #:lisp-unit2
-        #:cl-yatlp/atn
-        #:cl-yatlp/parser-states
-        #:cl-yatlp/parser-creation)
+        #:cl-yatlp/src/atn
+        #:cl-yatlp/src/parser/states
+        #:cl-yatlp/src/parser/creation)
   (:export #:.or-rule
            #:.rule-state
            #:.str-state
@@ -11,7 +11,7 @@
            #:.eps-state
            #:.end-state))
 
-(in-package #:parser-tests)
+(in-package #:cl-yatlp/tests/parser/test-utils)
 
 (defun .or-rule (rule options &rest states)
   (lambda ()

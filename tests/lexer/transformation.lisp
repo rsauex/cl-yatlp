@@ -1,10 +1,12 @@
-(defpackage #:lexer/transformation-tests
-  (:use #:cl #:cl-yatlp/atn #:cl-yatlp/lexer-creation #:cl-yatlp/cond
-        #:lexer/test-utils #:cl-yatlp/lexer-transformation #:lisp-unit2)
+(uiop:define-package #:cl-yatlp/tests/lexer/transformation
+  (:use #:cl #:cl-yatlp/src/atn #:cl-yatlp/src/lexer/creation
+        #:cl-yatlp/src/lexer/cond
+        #:cl-yatlp/tests/lexer/test-utils
+        #:cl-yatlp/src/lexer/transformation #:lisp-unit2)
   (:import-from #:alexandria
                 #:curry))
 
-(in-package #:lexer/transformation-tests)
+(in-package #:cl-yatlp/tests/lexer/transformation)
 
 (defmacro deftest (name grammar main-test &rest rule-tests)
   `(define-test ,name

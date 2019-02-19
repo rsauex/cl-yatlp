@@ -1,12 +1,12 @@
-(defpackage #:mimic-tests
+(uiop:define-package #:cl-yatlp/tests/parser/transformations/mimic
   (:use #:cl
         #:lisp-unit2
-        #:cl-yatlp/transformations/mimic
-        #:cl-yatlp/atn
-        #:cl-yatlp/parser-states
-        #:cl-yatlp/parser-creation))
+        #:cl-yatlp/src/parser/transformations/mimic
+        #:cl-yatlp/src/atn
+        #:cl-yatlp/src/parser/states
+        #:cl-yatlp/src/parser/creation))
 
-(in-package #:mimic-tests)
+(in-package #:cl-yatlp/tests/parser/transformations/mimic)
 
 (defmacro deftest (name grammar &rest body)
   `(define-test ,name

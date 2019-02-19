@@ -1,8 +1,8 @@
-(defpackage #:cl-yatlp/lexer-transformation
-  (:use #:cl #:alexandria #:cl-yatlp/cond #:cl-yatlp/atn #:cl-yatlp/lexer-states #:cl-yatlp/lexer-creation)
+(uiop:define-package #:cl-yatlp/src/lexer/transformation
+  (:use #:cl #:alexandria #:cl-yatlp/src/lexer/cond #:cl-yatlp/src/atn #:cl-yatlp/src/lexer/states #:cl-yatlp/src/lexer/creation)
   (:export #:nfa->dfa))
 
-(in-package #:cl-yatlp/lexer-transformation)
+(in-package #:cl-yatlp/src/lexer/transformation)
 
 ;;; Call insertation ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Replaces every call state with the body of the corresponding fragment.
