@@ -16,3 +16,6 @@
 (defun test-suite ()
   (with-summary ()
     (run-tests :tags :all)))
+
+(defun run-test-suite ()
+  (not (lisp-unit2:failed (test-suite))))
