@@ -102,14 +102,11 @@
     ((rule (:*? #\a)))
   (.simple-state
    -> :eps (.simple-state
-            -> :eps (.ng-loop-start
+            -> :eps (.simple-state
                      = loop-start
+                     -> :eps (.end-state rule)
                      -> #\a (.simple-state
-                             -> :eps (.ng-loop-end
-                                      = loop-end
-                                      -> :eps loop-start
-                                      -> :eps (.end-state rule)))
-                     -> :eps loop-end))))
+                             -> :eps loop-start)))))
 
 (deftest creation.11
     ((rule (:+ #\a)))
@@ -125,9 +122,9 @@
     ((rule (:+? #\a)))
   (.simple-state
    -> :eps (.simple-state
-            -> :eps (.ng-loop-start
+            -> :eps (.simple-state
                      = loop-start
                      -> #\a (.simple-state
-                             -> :eps (.ng-loop-end
+                             -> :eps (.simple-state
                                       -> :eps loop-start
                                       -> :eps (.end-state rule)))))))

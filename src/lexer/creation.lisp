@@ -8,92 +8,91 @@
 
 ;; Method for each type of form in rule
 
-(defgeneric state-for (rule-type form next-states)
+(defgeneric state-for (rule-type form next-states &optional priority)
   (:documentation "Creates necessary states and returns a list with
 entry state and an input cond."))
 
 (defmacro def-state-for (type vars &rest body)
   "Macro for defining `state-for' methods. Each value in `vars' must be a symbol,
 which will be \"let'ed\" to gensyms."
-  `(defmethod state-for ((rule-type (eql ,type)) form next-states)
+  `(defmethod state-for ((rule-type (eql ,type)) form next-states &optional (priority :normal))
      (let ,(mapcar (rcurry #'list '(gensym)) vars)
        ,@body)))
 
 (def-state-for :char (state-id)
   (@add-state state-id 'simple-state :nexts next-states)
-  (list state-id form))
+  (make-next :state state-id :cond form :priority priority))
 
 (def-state-for :any (state-id)
   (@add-state state-id 'simple-state :nexts next-states)
-  (list state-id t))
+  (make-next :state state-id :cond t :priority priority))
 
 (def-state-for :r (state-id)
   (@add-state state-id 'simple-state :nexts next-states)
-  (list state-id form))
+  (make-next :state state-id :cond form :priority priority))
 
 (def-state-for :or (state-id)
   (@add-state state-id 'simple-state
-              :nexts (mapcar (rcurry #'rule-form->state next-states)
+              :nexts (mapcar (rcurry #'rule-form->state next-states priority)
                              (rest form)))
-  (list state-id :eps))
+  (make-next :state state-id :cond :eps :priority priority))
 
 (def-state-for :seq ()
   (if (null (rest form))
-      (rule-form->state (first form) next-states)
-      (rule-form->state (first form) (list (state-for :seq (rest form) next-states)))))
+      (rule-form->state (first form) next-states priority)
+      (rule-form->state (first form) (list (state-for :seq (rest form) next-states priority)) priority)))
 
 (def-state-for :? (state-id)
-  (let ((present (state-for :seq (rest form) next-states)))
+  (let ((present (state-for :seq (rest form) next-states priority)))
     (@add-state state-id 'simple-state :nexts (cons present next-states))
-    (list state-id :eps)))
+    (make-next :state state-id :cond :eps :priority priority)))
 
 (def-state-for :* (state-id)
-  (let ((body (state-for :seq (rest form) (cons (list state-id :eps) next-states))))
+  (let ((body (state-for :seq (rest form) (cons (make-next :state state-id :cond :eps :priority priority) next-states)  priority)))
     (@add-state state-id 'simple-state :nexts (cons body next-states))
-    (list state-id :eps)))
+    (make-next :state state-id :cond :eps :priority priority)))
 
-(def-state-for :*? (start-id end-id)
-  (let ((body (state-for :seq (rest form) `((,end-id :eps)))))
-    (@add-state start-id 'ng-loop-start :nexts (list body (list end-id :eps)))
-    (@add-state end-id 'ng-loop-end :nexts (cons (list start-id :eps) next-states))
-    (list start-id :eps)))
+(def-state-for :*? (state-id)
+  (let ((body (state-for :seq (rest form) (list (make-next :state state-id :cond :eps :priority priority)) :low)))
+    (@add-state state-id 'simple-state :nexts (append next-states (list body)))
+    (make-next :state state-id :cond :eps :priority priority)))
 
 (def-state-for :+ (body-end)
-  (let ((body (state-for :seq (rest form) `((,body-end :eps)))))
+  (let ((body (state-for :seq (rest form) (list (make-next :state body-end :cond :eps :priority priority)) priority)))
     (@add-state body-end 'simple-state :nexts (cons body next-states))
     body))
 
 (def-state-for :+? (start-id end-id)
-  (let ((body (state-for :seq (rest form) `((,end-id :eps)))))
-    (@add-state start-id 'ng-loop-start :nexts (list body))
-    (@add-state end-id 'ng-loop-end :nexts (cons (list start-id :eps) next-states))
-    (list start-id :eps)))
+  (let ((body (state-for :seq (rest form) (list (make-next :state end-id :cond :eps :priority priority)) :low)))
+    (@add-state start-id 'simple-state :nexts (list body))
+    (@add-state end-id 'simple-state :nexts (cons (make-next :state start-id :cond :eps :priority priority) next-states))
+    (make-next :state start-id :cond :eps :priority priority)))
 
 (def-state-for :call (state-id)
   (@add-state state-id 'call-state :call-to (delayed-rule form) :nexts next-states)
-  (list state-id :eps))
+  (make-next :state state-id :cond :eps :priority priority))
 
 (def-state-for :~ (state-id)
   (@add-state state-id 'simple-state :cond t :nexts next-states)
-  (list state-id form))
+  (make-next :state state-id :cond form :priority priority))
 
-(defun rule-form->state (form next-states)
+(defun rule-form->state (form next-states priority)
   "Call the corresponding `state-for' method for the `form'."
   (cond
     ((null form)
      next-states)
     ((characterp form)
-     (state-for :char form next-states))
+     (state-for :char form next-states priority))
     ((stringp form)
-     (rule-form->state (coerce form 'list) next-states))
+     (rule-form->state (coerce form 'list) next-states priority))
     ((eq :any form)
-     (state-for :any form next-states))
+     (state-for :any form next-states priority))
     ((symbolp form)
-     (state-for :call form next-states))
+     (state-for :call form next-states priority))
     ((listp form)
      (if (member (first form) '(:r :or :? :~ :* :*? :+ :+?))
-         (state-for (first form) form next-states)
-         (state-for :seq form next-states)))
+         (state-for (first form) form next-states priority)
+         (state-for :seq form next-states priority)))
     (t (error "Wrong rule form ~A" form))))
 
 (defun rule->state (rule)
@@ -103,9 +102,9 @@ Returns the first of them and the input cond."
         (end-state (gensym))) 
     (destructuring-bind (name form &rest options)
         rule
-      (@add-state start-state 'simple-state :cond t :nexts (list (rule-form->state form `((,end-state :eps)))))
+      (@add-state start-state 'simple-state :cond t :nexts (list (rule-form->state form `(,(make-next :state end-state :cond :eps)) :normal)))
       (@add-state end-state 'end-state :type name :options options)
-      (list start-state :eps))))
+      (make-next :state start-state :cond :eps))))
 
 (defun grammar->start-states (grammar)
   "Creates and adds rule (in current atn) for each rule in `grammar'.
@@ -114,7 +113,7 @@ a list of id of first states of each non-fragment rule."
   (loop for rule in grammar
         for (rule-name _ . rule-options) = rule
         for start-state = (rule->state rule)
-        do (@add-rule rule-name 'rule :state (first start-state) :options rule-options)
+        do (@add-rule rule-name 'rule :state (next-state start-state) :options rule-options)
         unless (member :fragment rule-options)
           collect start-state))
 

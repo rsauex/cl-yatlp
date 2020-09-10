@@ -30,6 +30,11 @@
 
            #:delayed-rule
 
+           #:make-next
+           #:next-state
+           #:next-cond
+           #:next-priority
+           
            #:with-visiting
            #:visit
 
@@ -96,6 +101,11 @@
 (defstate call-state (state)
   ((to :accessor state-call-to
        :initarg :call-to)))
+
+(defstruct next
+  state
+  (cond :eps)
+  (priority :normal))
 
 ;;; Structure
 

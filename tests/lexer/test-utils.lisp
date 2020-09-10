@@ -22,8 +22,8 @@
   (lambda (state)
     (mapc
      (lambda (next1 next2)
-       (assert-equalp (second next1) (second next2))
-       (funcall (first next1) (first next2)))
+       (assert-equalp (next-cond next1) (next-cond next2))
+       (funcall (next-state next1) (next-state next2)))
      nexts (@state-nexts state))))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
@@ -32,11 +32,13 @@
         (progn
           (assert-eq '-> (first forms))
           (forms->nexts (nthcdr 3 forms)
-                        (cons `(list ,(if (symbolp (third forms))
-                                          `(lambda (state)
-                                             (assert-true (@same-ids? (gethash ',(third forms) *states*) state)))
-                                          (third forms))
-                                     ',(second forms)) acc)))
+                        (cons `(make-next
+                                :state ,(if (symbolp (third forms))
+                                            `(lambda (state)
+                                               (assert-true (@same-ids? (gethash ',(third forms) *states*) state)))
+                                            (third forms))
+                                :cond ',(second forms))
+                              acc)))
         (reverse acc)))
 
   (defun to-test-fn (name forms)
@@ -72,9 +74,3 @@
   `(progn
      (assert-true (@typep state 'call-state))
      (assert-true (@same-ids? (gethash ',state *states*) (@state-call-to state)))))
-
-(def-check .ng-loop-start ()
-  `(assert-true (@typep state 'ng-loop-start)))
-
-(def-check .ng-loop-end ()
-  `(assert-true (@typep state 'ng-loop-end)))

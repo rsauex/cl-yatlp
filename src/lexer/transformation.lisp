@@ -20,8 +20,8 @@
       (@add-state state-id 'simple-state :nexts nexts)
       (@add-state state-id (@state-type state)
                   :nexts (mapcar (lambda (s)
-                                   (list (copy-call (first s) nexts (gensym))
-                                         (second s)))
+                                   (make-next :state (copy-call (next-state s) nexts (gensym))
+                                              :cond (next-cond s)))
                                  (@state-nexts state))))
   state-id)
 
@@ -29,7 +29,7 @@
   (@traverse-atn
    (lambda (id)
      (@add-state id 'simple-state
-                 :nexts `((,(copy-call (@state-call-to id) (@state-nexts id)) :eps))))
+                 :nexts `(,(make-next :state (copy-call (@state-call-to id) (@state-nexts id)) :cond :eps))))
    :filter (rcurry #'@typep 'call-state)))
 
 ;;; NFA -> DFA transformation ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -44,7 +44,7 @@
     (remove :eps
             (mappend (lambda (state)
                        (mapcar (lambda (next)
-                                 (second next))
+                                 (next-cond next))
                                (@state-nexts state)))
                      set))
     :test #'cond-equal)))
@@ -59,8 +59,8 @@
     (cons
      state
      (mappend (lambda (next)
-                (when (eq :eps (second next))
-                  (%eps-closure (first next))))
+                (when (eq :eps (next-cond next))
+                  (%eps-closure (next-state next))))
               (@state-nexts state)))))
 
 (def-state-method %eps-closure ((state end-state))
@@ -71,35 +71,40 @@
   "Return a set of states which are accessable for the given one, consiring that 
 the state itself is always accessable, without consuming any characters."
   (with-visiting
-    (sort (%eps-closure state)
-          #'string< :key #'symbol-name)))
+    (%eps-closure state)))
 
 (defun eps-closure-for-set (set)
   "Computes epsilon closure for each state in `set' and returns the set
 which includes all of that closures."
-  (sort (remove-duplicates
-         (mappend #'eps-closure set))
-        #'string< :key #'symbol-name))
+  (remove-duplicates
+   (mappend #'eps-closure set)))
 
 (defun nexts-for (set cond)
   "Return an epsilon closure for the set of states which can be accessed
 after states in `set' depending on the value of cond. Cond must not be :eps"
-  (eps-closure-for-set
-   (mappend (lambda (state)
-              (mappend (lambda (next)
-                         (and (not (eq :eps (second next)))
-                              (cond-equal cond 
-                                          (cond-intersection cond (second next)))
-                              (list (first next))))
-                       (@state-nexts state)))
-            set)))
+  (unless (and (some (rcurry #'@typep 'end-state) set)
+               (some (compose (curry #'some (compose (curry #'eq :low) #'next-priority)) #'@state-nexts) set))
+    (let ((next-set nil))
+      (loop :for state :in set :do
+        (loop :for next :in (@state-nexts state)
+              :unless (or (eq :eps (next-cond next))
+                          (not (cond-equal cond (cond-intersection cond (next-cond next)))))
+                :do (push (next-state next) next-set)))
+      (eps-closure-for-set (remove-duplicates next-set)))))
+
+(defun nexts-for-set (set)
+  "Compute next sets for the given set for all the conditions."
+  (loop :for cond :in (conds-for-set set)
+        :for nexts := (nexts-for set cond)
+        :when nexts
+          :collect (make-next :state (%nfa->dfa/set nexts) :cond cond)))
 
 ;; States sets
 
 (defvar *sets* nil
   "Holds corrent table of registered state in form of [set -> state in DFA]")
 
-(defun try-register-set (set &optional (name (gensym)))
+(defun try-register-set (set)
   "Returns two values: the first one is always the name of the set
 and the second one is T when the state wasn't registred before or NIL otherwise.
 If the state is empty raise an error."
@@ -107,7 +112,7 @@ If the state is empty raise an error."
    (error "Empty state during NFA->DFA transformation"))
   (if-let (old-name (gethash set *sets*))
     old-name
-    (values (setf (gethash set *sets*) name) t)))
+    (values (setf (gethash set *sets*) (gensym)) t)))
 
 (defun %nfa->dfa/set (set)
   "Tries to register a set and if it has already been registred just returns its name.
@@ -115,14 +120,8 @@ If the state is \"new\" then it creates a new state in DFA and computes next sta
 for it."
   (multiple-value-bind (set-name new?)
       (try-register-set set)
-    (unless new?
-      (return-from %nfa->dfa/set set-name))
-
-    (@add-state set-name 'simple-state
-                :nexts (mapcar (lambda (cond)
-                                 (let ((nexts (nexts-for set cond)))
-                                   (list (%nfa->dfa/set nexts) cond)))
-                               (conds-for-set set)))
+    (when new?
+      (@add-state set-name 'simple-state :nexts (nexts-for-set set)))
     set-name))
 
 ;; End computation
@@ -138,24 +137,15 @@ from the given set of states. Return NIL if there are no end states in `states'.
   "Finds the states in DFA for which the corresponding set of states in NFA
 contains end state and makes it an end state with the type of the best end state
 in the corresponding set of NFA states."
-  (let ((ng-loops-starts nil))
-    (maphash
-     (lambda (set state)
-       (when (member-if (rcurry #'@typep 'ng-loop-start) set)
-         (push state ng-loops-starts)))
-     *sets*)
-    (maphash
-     (lambda (set state)
-       (let ((end-state (get-best-end set)))
-         (when end-state
-           (@add-state state 'end-state
-                       :nexts (if (member-if (rcurry #'@typep 'ng-loop-end) set)
-                                  (remove-if (compose (rcurry #'member ng-loops-starts) #'first)
-                                             (@state-nexts state))
-                                  (@state-nexts state))
-                       :type (@state-end-type end-state)
-                       :options (@state-end-options end-state)))))
-     *sets*)))
+  (maphash
+   (lambda (set state)
+     (let ((end-state (get-best-end set)))
+       (when end-state
+         (@add-state state 'end-state
+                     :nexts (@state-nexts state)
+                     :type (@state-end-type end-state)
+                     :options (@state-end-options end-state)))))
+   *sets*))
 
 ;; nfa->dfa
 
@@ -173,7 +163,7 @@ in the corresponding set of NFA states."
   (with-visiting
     (labels ((%visit (state)
                (unless (visit state)
-                 (mapc (compose #'%visit #'first) (@state-nexts state)))))
+                 (mapc (compose #'%visit #'next-state) (@state-nexts state)))))
       (%visit start)
       (mapc (lambda (s)
               (unless (visit s)

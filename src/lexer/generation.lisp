@@ -16,8 +16,8 @@
      ((null *cur*)
       (error "Unexpected EOF at ~A:~A" *line* *pos*))
      ,@(mapcar (lambda (s)
-                 `(,(cond->test (second s) '*cur*)
-                   (next ,(first s))))
+                 `(,(cond->test (next-cond s) '*cur*)
+                   (next ,(next-state s))))
                (@state-nexts state))
      (t
       (error "Unexpected symbol ~S at ~A:~A" *cur* *line* *pos*))))
@@ -49,8 +49,8 @@
        ((null *cur*)
         ,return-form)
        ,@(mapcar (lambda (s)
-                   `(,(cond->test (second s) '*cur*)
-                     (next ,(first s))))
+                   `(,(cond->test (next-cond s) '*cur*)
+                     (next ,(next-state s))))
                  (@state-nexts state))
        (t ,return-form))))
 

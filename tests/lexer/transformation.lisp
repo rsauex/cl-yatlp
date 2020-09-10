@@ -14,7 +14,8 @@
      (with-lexer-test
        (with-atn (nfa->dfa (grammar->nfa ',grammar))
          ,@(mapcar (lambda (test)
-                     `(funcall ,(second test) (@rule-state ',(first test)))) rule-tests)
+                     `(funcall ,(second test) (@rule-state ',(first test))))
+                   rule-tests)
          (funcall ,main-test (@extra :start))))
      t))
 
@@ -29,18 +30,18 @@
    (rule2 "ac"))
   (.simple-state
    -> #\a (.simple-state
-           -> #\b (.end-state rule1)
-           -> #\c (.end-state rule2))))
+           -> #\c (.end-state rule2)
+           -> #\b (.end-state rule1))))
 
 (deftest transformation.3
   ((rule1 (:+ #\a))
    (rule2 "ab"))
   (.simple-state
    -> #\a (.end-state rule1
+           -> #\b (.end-state rule2)
            -> #\a (.end-state rule1
                    = loop
-                   -> #\a loop)
-           -> #\b (.end-state rule2))))
+                   -> #\a loop))))
 
 
 (deftest transformation.4
