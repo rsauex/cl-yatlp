@@ -1,0 +1,56 @@
+# Ideas
+
+## New parser implementation
+
+### Internal Sturctures
+
+Two stacks:
+- **Execution**
+- **Build**
+
+One queue:
+- **Token**
+
+### Instructions:
+
+#### Execution
+
+```
+ -> !Push(<desc>) ->
+```
+Push descriptor to the execution stack
+
+```
+ -> !Pop ->
+```
+Pop and discard descriptor from the execution stack
+
+```
+ -> !Peek --<desc>->
+          \-<desc>->
+```
+Peek at the top descriptor from the execution stack and decide
+
+#### Building
+
+```
+ -> !Build(<rule>) ->
+```
+Build AST node and push to the building stack
+
+#### Tokens
+
+```
+ -> !Store ->
+```
+Push first token from the token queue to the building stack
+
+### Instructions merge
+
+Any instructions can be merged sequentially.
+
+```!Push(<desc>)``` - ```<desc>```s become one
+```!Pop``` - ...
+```!Peek``` - merge decisions
+```!Build(<rule>)``` - ```<rule>```s are conflicting
+```!Store``` - ...
