@@ -2,11 +2,14 @@
   (:use #:cl #:cl-yatlp/src/atn)
   (:export #:simple-state
            #:rule-state
-           #:lex-state
-           #:str-state
-           #:eps-state
-           #:mimic-state
-           #:p-end-state
+           #:instruction-state
+           #:push-state
+           #:pop-state
+           #:build-state
+           #:start-list-state
+           #:end-list-state
+           #:add-to-list-state
+           #:store-state
            #:end-state
            
            #:simple-rule
@@ -19,29 +22,7 @@
 
 (defstate simple-state (state) ())
 
-(defstate rule-state (simple-state)
-  ((rule :accessor state-rule
-         :initarg :rule)))
-
-(defstate lex-state (simple-state)
-  ((lex :accessor state-lex
-        :initarg :lex)))
-
-(defstate str-state (simple-state)
-  ((text :accessor state-str
-         :initarg :str)))
-
-(defstate eps-state (simple-state) ())
-
-(defstate mimic-state (simple-state)
-  ((rule :accessor state-mimic-rule
-         :initarg :rule)))
-
-(defstate p-end-state (end-state)
-  ((format :accessor state-end-format
-           :initarg :format
-           :initform nil)))
-
+;;; TODO: is it needed
 (defstate end-state (state)
   ((type :accessor state-end-type
          :initarg :type)
@@ -49,15 +30,47 @@
             :initform nil
             :initarg :options)))
 
+;;;; Intermediate states
 
-(defrule simple-rule (rule) ())
+(defstate rule-state (simple-state)
+  ((rule :accessor state-rule
+         :initarg :rule)))
 
-(defrule or-rule (rule) ())
+;;;; Instruction states
 
-(defrule loop-rule (rule)
-  ((delim :accessor loop-delim
-          :initarg :delim)))
+(defstate instruction-state (simple-state) ())
 
-(defrule s-loop-rule (loop-rule) ())
+(defstate push-state (instruction-state)
+  ((descriptor :accessor state-push-descriptor
+               :initarg :descriptor)))
 
-(defrule p-loop-rule (loop-rule) ())
+(defstate pop-state (instructtion-state) ())
+
+(defstate build-state (instruction-state)
+  ((alternative :accessor state-build-alternative
+                :initarg :alternative)))
+
+(defstate start-list-state (instruction-state) ())
+(defstate end-list-state (instruction-state) ())
+(defstate add-to-list-state (instruction-state) ())
+
+(defstate store-state (instruction-state) ()) ;; TODO: Rename!
+
+;;;;;;;;;;;;;;;;;
+
+(def-state-method state->dot ((state simple-state) stream)
+  (format stream "  ~A [label = \"~A\\n~A [~A]\"];~%"
+          state state (type-of (@get-state state)) (@state-cond state))
+  (dolist (x (@state-nexts state))
+    (if (eq :low (next-priority x))
+        (format stream "  ~A -> ~A [label=\"~A [:low]\"]~%"
+                state (next-state x) (next-cond x))
+        (format stream "  ~A -> ~A [label=\"~A\"]~%"
+                state (next-state x) (next-cond x)))))
+
+(def-state-method state->dot ((state end-state) stream)
+  (format stream "  ~A [peripheries=2 label=\"~A\\n~A [~A]\\ntype = ~A\"];~%"
+          state state (@state-type state) (@state-cond state) (@state-end-type state))
+  (dolist (x (@state-nexts state))
+    (format stream "  ~A -> ~A [label=\"~A\"]~%"
+            state (next-state x) (next-cond x))))

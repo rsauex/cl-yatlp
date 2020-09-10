@@ -9,112 +9,99 @@
 
 (in-package #:cl-yatlp/src/parser/creation)
 
-(defvar *format*)
+(defgeneric state-for (rule-type form next-state))
 
-(defgeneric state-for (rule-type format state-name next-state))
+(defmacro def-state-for (type vars &rest body)
+  "Macro for defining `state-for' methods. Each value in `vars' must be a symbol,
+which will be \"let'ed\" to gensyms."
+  `(defmethod state-for ((rule-type (eql ,type)) form next-state)
+     (let ,(mapcar (rcurry #'list '(gensym)) vars)
+       ,@body)))
 
-(defmethod state-for (rule-type format state-name next-state)
-  (error "Wrong sub-rule format ~A" format))
+(def-state-for :call (state-id)
+  (@add-state state-id 'rule-state :nexts (list next-state)
+                                   :rule form)
+  (make-next :state state-id :cond :eps))
 
-(defmethod state-for ((rule-type (eql :call)) format state-name next-state)
-  (push :_ *format*)
-  (@add-state state-name 'rule-state :nexts (list next-state)
-                                     :rule format)
+(def-state-for :str (state-id)
+  (@add-state state-id 'simple-state :nexts (list next-state))
+  (make-next :state state-id :cond (list :str form)))
+
+(def-state-for :lex (state-id)
+  (@add-state state-id 'simple-state :nexts (list next-state))
+  (make-next :state state-id :cond (list :lex (second form))))
+
+(def-state-for :eps ()
   next-state)
 
-(defmethod state-for ((rule-type (eql :str)) format state-name next-state)
-  (push format *format*)
-  (@add-state state-name 'str-state :nexts (list next-state)
-                                    :str format)
-  next-state)
-
-;; (defmethod state-for ((rule-type (eql :eps)) format state-name next-state)
-;;   (@add-state state-name 'eps-state :nexts (list next-state)))
-
-(defmethod state-for ((rule-type (eql :lex)) format state-name next-state)
-  (push :lex *format*)
-  (@add-state state-name 'lex-state :nexts (list next-state)
-                                    :lex (second format))
-  next-state)
-
-(defmethod state-for ((rule-type (eql :^)) format state-name next-state)
-  (@add-state state-name 'mimic-state :nexts (list next-state)
-                                      :rule (second format))
-  next-state)
-
-(defmethod state-for ((rule-type (eql :seq)) format state-name next-state)
+(def-state-for :seq ()
   (cond
-    ((null format)
-     state-name)
-    ((member (first format) '(:{ :} :v :> :< :. :!))
-     (desr-rule->state (first format) nil nil)
-     (state-for :seq (rest format) state-name next-state))
+    ((null (rest form))
+     (desr-rule->state (first form) next-state))
     (t
-     (let ((seq-end (gensym)))
-       (desr-rule->state (first format) state-name next-state)
-       (state-for :seq (rest format) next-state seq-end)))))
+     (desr-rule->state (first form) (state-for :seq (rest form) next-state)))))
 
-(defmethod state-for ((rule-type (eql :format)) format state-name next-state)
-  (push format *format*)
-  next-state)
-
-(defun desr-rule->state (format state-name next-state)
+(defun desr-rule->state (form next-state)
   (cond
-    ((null format)
+    ((null form)
      (error "Wrong format"))
-    ((stringp format)
-     (state-for :str format state-name next-state))
-    ((eq :eps format)
-     (state-for :eps format state-name next-state))
-    ((member format '(:{ :} :v :> :< :. :!))
-     (state-for :format format state-name next-state))
-    ((symbolp format)
-     (state-for :call format state-name next-state))
-    ((listp format)
+    ((stringp form)
+     (state-for :str form next-state))
+    ((eq :eps form)
+     (state-for :eps form  next-state))
+    ((symbolp form)
+     (state-for :call form next-state))
+    ((listp form)
      (cond
-       ((member (first format) '(:^ :lex))
-        (state-for (first format) format state-name next-state))
-       (t (state-for :seq format state-name next-state))))
-    (t (error "Wrong rule format ~A" format))))
+       ((member (first form) '(:lex))
+        (state-for (first form) form next-state))
+       (t (state-for :seq form next-state))))
+    (t (error "Wrong rule format ~A" form))))
 
 (defgeneric rule-for (rule-type format rule-name options))
 
 (defmethod rule-for ((rule-type (eql ':or)) format rule-name options)
-  (@add-rule rule-name 'or-rule
-             :state (mapcar (lambda (f)
-                              (let (*format*
-                                    (alter (gensym))
-                                    (end-sym (gensym)))
-                                (let ((end-s (desr-rule->state f alter end-sym)))
-                                  (@add-state end-s 'p-end-state :type rule-name
-                                                                 :format (reverse *format*)))
-                                alter))
-                            format)
-             :options options))
+  (setf (gethash rule-name (@extra :rules-map))
+        (let ((start-state (gensym)))
+          (@add-state
+           start-state
+           'simple-state
+           :nexts (mapcar (lambda (f)
+                            (let ((build-state-id (gensym)))
+                              (@add-state 
+                               build-state-id
+                               'build-state :alternative (gensym)
+                                            :nexts '())
+                              (desr-rule->state f (make-next :state build-state-id :cond :eps))))
+                          format)))))
 
 (defmethod rule-for ((rule-type (eql :*)) format rule-name options)
   (destructuring-bind (delim &rest body)
       format
-    (let ((*format* (list delim :*))
-          (body-sym (gensym))
-          (end-sym (gensym)))
-      (@add-rule rule-name 's-loop-rule :state (list body-sym)
-                                        :delim delim
-                                        :options options)
-      (desr-rule->state body body-sym end-sym)
-      (@add-state end-sym 'p-end-state :type rule-name :format (reverse *format*)))))
+    (let* ((start-sym (gensym))
+           (add-to-list-sym (gensym))
+           (end-sym (gensym))
+           (body-next (desr-rule->state body (make-next :state add-to-list-sym :cond :eps)))
+           (delimiter-next (desr-rule->state delim body-next)))
+      (setf (gethash rule-name (@extra :rules-map))
+            start-sym)
+      (@add-state start-sym 'start-list-state :nexts (list body-next (make-next :state end-sym :cond :eps)))
+      (@add-state add-to-list-sym 'add-to-list-state :nexts (list delimiter-next (make-next :state end-sym :cond :eps)))
+      (@add-state end-sym 'build-state :alternative rule-name :nexts '()))))
 
 (defmethod rule-for ((rule-type (eql :+)) format rule-name options)
   (destructuring-bind (delim &rest body)
       format
-    (let ((*format* (list delim :+))
-          (body-sym (gensym))
-          (end-sym (gensym)))
-      (@add-rule rule-name 'p-loop-rule :state (list body-sym)
-                                        :delim delim
-                                        :options options)
-      (desr-rule->state body body-sym end-sym)
-      (@add-state end-sym 'p-end-state :type rule-name :format (reverse *format*)))))
+    (let* ((start-sym (gensym))
+           (add-to-list-sym (gensym))
+           (end-sym (gensym))
+           (body-next (desr-rule->state body (make-next :state add-to-list-sym :cond :eps)))
+           (delimiter-next (desr-rule->state delim body-next)))
+      (setf (gethash rule-name (@extra :rules-map))
+            start-sym)
+      (@add-state start-sym 'start-list-state :nexts (list body-next))
+      (@add-state add-to-list-sym 'add-to-list-state :nexts (list delimiter-next (make-next :state end-sym :cond :eps)))
+      (@add-state end-sym 'build-state :alternative rule-name :nexts '()))))
 
 (defun parse-rule (rule)
   "Parses rule into name alternatives and options.
@@ -147,10 +134,10 @@ Each rule has the following format (<name> {-> ...} [:options ...]"
              (%parse-body (cons type body))
            (values name alternatives options :or)))
         ((:+ :*)
-         (destructuring-bind (delim rule &rest options) (rest body)
+         (destructuring-bind (delim rule &rest options) body
            (values name (list delim rule) (rest options) type)))
         (:lex
-         (destructuring-bind (regex &rest options) (rest body)
+         (destructuring-bind (regex &rest options) body
            (values name regex (rest options) type)))))))
 
 (defun rule->state (rule)
@@ -162,6 +149,7 @@ Each rule has the following format (<name> {-> ...} [:options ...]"
   "Transformate the given grammar into ATN"
   (let ((atn (make-atn))) 
     (with-atn atn
+      (setf (@extra :rules-map) (make-hash-table))
       (mapc #'rule->state grammar)
       (setf (@extra :start-rule) (first (first grammar)))
       atn)))
